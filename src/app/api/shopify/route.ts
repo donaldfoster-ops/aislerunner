@@ -52,6 +52,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, results });
     }
 
+    if (action === 'completePrintJobs') {
+      const { ids } = bodyData;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json({ success: true });
+      }
+
+      try {
+        const shopId = await getShopId(STORE_URL, SHOPIFY_TOKEN);
+        if (shopId) {
+          const queue = await getPrintQueue(STORE_URL, SHOPIFY_TOKEN, shopId);
+          const updatedQueue = queue.filter((job: any) => !ids.includes(job.id));
+          await setPrintQueue(STORE_URL, SHOPIFY_TOKEN, shopId, updatedQueue);
+          return NextResponse.json({ success: true });
+        }
+      } catch (e: any) {
+        console.error("Failed to complete/clear print jobs:", e);
+        return NextResponse.json({ error: e.message }, { status: 500 });
+      }
+    }
+
     const { method = 'GET', endpoint, body, graphql, variables } = bodyData;
     let url, shopifyMethod, shopifyBody;
 
@@ -275,11 +295,49 @@ ${318 + 15 + pdfLength + 10}
 
       const base64Pdf = Buffer.from(pdfTemplate, 'binary').toString('base64');
       
+      const shouldPushQueue = searchParams.get('push_queue') === 'true';
+      if (shouldPushQueue) {
+        try {
+          const shopId = await getShopId(STORE_URL, SHOPIFY_TOKEN);
+          if (shopId) {
+            const queue = await getPrintQueue(STORE_URL, SHOPIFY_TOKEN, shopId);
+            const newJob = {
+              id: 'job-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+              order_number: cleanOrderNumber,
+              pdf: base64Pdf,
+              timestamp: Date.now()
+            };
+            queue.push(newJob);
+            if (queue.length > 20) {
+              queue.shift();
+            }
+            await setPrintQueue(STORE_URL, SHOPIFY_TOKEN, shopId, queue);
+          }
+        } catch (e) {
+          console.error("Failed to push print job to remote Shopify metafield queue:", e);
+        }
+      }
+      
       return NextResponse.json({
         success: true,
         order_number: cleanOrderNumber,
         pdf: base64Pdf
       });
+    }
+
+    // Poll print queue from Shopify shop metafields
+    if (action === 'pollPrintJobs') {
+      try {
+        const shopId = await getShopId(STORE_URL, SHOPIFY_TOKEN);
+        if (shopId) {
+          const queue = await getPrintQueue(STORE_URL, SHOPIFY_TOKEN, shopId);
+          return NextResponse.json({ jobs: queue });
+        }
+        return NextResponse.json({ jobs: [] });
+      } catch (e: any) {
+        console.error("Failed to poll print queue:", e);
+        return NextResponse.json({ error: e.message }, { status: 500 });
+      }
     }
 
     // 3. Single Order Lookup
@@ -452,4 +510,90 @@ ${318 + 15 + pdfLength + 10}
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+// Helper functions for remote printing queue via Shopify Shop metafields
+async function getShopId(storeUrl: string, token: string) {
+  const query = `
+    query {
+      shop {
+        id
+      }
+    }
+  `;
+  const res = await fetch(`https://${storeUrl}/admin/api/2026-04/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': token,
+    },
+    body: JSON.stringify({ query }),
+  });
+  const data = await res.json();
+  return data.data?.shop?.id;
+}
+
+async function getPrintQueue(storeUrl: string, token: string, shopId: string) {
+  const query = `
+    query GetPrintQueue($shopId: ID!) {
+      node(id: $shopId) {
+        ... on Shop {
+          metafield(namespace: "mzk", key: "print_queue") {
+            value
+          }
+        }
+      }
+    }
+  `;
+  const res = await fetch(`https://${storeUrl}/admin/api/2026-04/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': token,
+    },
+    body: JSON.stringify({ query, variables: { shopId } }),
+  });
+  const data = await res.json();
+  const valueStr = data.data?.node?.metafield?.value;
+  if (!valueStr) return [];
+  try {
+    return JSON.parse(valueStr);
+  } catch (e) {
+    return [];
+  }
+}
+
+async function setPrintQueue(storeUrl: string, token: string, shopId: string, queue: any[]) {
+  const mutation = `
+    mutation SetPrintQueue($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+  const res = await fetch(`https://${storeUrl}/admin/api/2026-04/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': token,
+    },
+    body: JSON.stringify({
+      query: mutation,
+      variables: {
+        metafields: [
+          {
+            ownerId: shopId,
+            namespace: "mzk",
+            key: "print_queue",
+            type: "json",
+            value: JSON.stringify(queue)
+          }
+        ]
+      }
+    }),
+  });
+  return await res.json();
 }

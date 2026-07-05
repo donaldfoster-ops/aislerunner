@@ -65,6 +65,54 @@ export default function PackTab() {
     }
   }, [toast]);
 
+  // Background print queue polling for desktop connected stations
+  useEffect(() => {
+    if (!qzConnected || !selectedPrinter) return;
+
+    let pollingInterval: any = null;
+
+    const checkQueue = async () => {
+      try {
+        const res = await fetch('/api/shopify?action=pollPrintJobs');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.jobs && data.jobs.length > 0) {
+          for (const job of data.jobs) {
+            console.log(`Printing remote job for #${job.order_number}...`);
+            triggerToast('success', `Printing remote label for #${job.order_number}...`);
+            
+            const config = qz.configs.create(selectedPrinter);
+            const printData = [{
+              type: 'pixel',
+              format: 'pdf',
+              flavor: 'base64',
+              data: job.pdf
+            }];
+
+            await qz.print(config, printData);
+          }
+          
+          // Clear completed jobs
+          const completedIds = data.jobs.map((j: any) => j.id);
+          await fetch('/api/shopify?action=completePrintJobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: completedIds })
+          });
+        }
+      } catch (err) {
+        console.error('Remote print queue check failed:', err);
+      }
+    };
+
+    // Run every 4 seconds
+    pollingInterval = setInterval(checkQueue, 4000);
+
+    return () => {
+      if (pollingInterval) clearInterval(pollingInterval);
+    };
+  }, [qzConnected, selectedPrinter]);
+
   const triggerToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
   };
@@ -328,7 +376,7 @@ export default function PackTab() {
 
     try {
       // Fetch label from API
-      const res = await fetch(`/api/shopify?action=getLabelPDF&order_number=${order.order_number}&order_id=${order.order_id}`);
+      const res = await fetch(`/api/shopify?action=getLabelPDF&order_number=${order.order_number}&order_id=${order.order_id}&push_queue=true`);
       const data = await res.json();
 
       if (data.error) throw new Error(data.error);
