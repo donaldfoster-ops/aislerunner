@@ -92,6 +92,7 @@ export default function PickTab() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [isLookupScanning, setIsLookupScanning] = useState<boolean>(false);
   const lookupScannerRef = useRef<any>(null);
+  const pickScannerRef = useRef<HTMLDivElement | null>(null);
 
   // OCR and Torch states
   const [scannerMode, setScannerMode] = useState<'barcode' | 'ocr'>('barcode');
@@ -1342,16 +1343,14 @@ export default function PickTab() {
     }
   };
 
-  // Camera Scanner component mounting
-  const CameraScanner = () => {
-    const scannerRef = useRef<HTMLDivElement>(null);
-    
-    useEffect(() => {
+  // Picking Camera Scanner mounting Effect
+  useEffect(() => {
+    if (scannerOpen && scanningItem && !scannerSuccess && typeof window !== 'undefined') {
       if (scannerMode === 'barcode') {
         let activeScanner: any = null;
         
         const timer = setTimeout(() => {
-          if (!scannerRef.current) return;
+          if (!pickScannerRef.current) return;
           
           import('html5-qrcode').then((module) => {
             const scanner = new module.Html5Qrcode("reader");
@@ -1385,7 +1384,7 @@ export default function PickTab() {
           }
         };
       } else {
-        // OCR scanning mode!
+        // OCR Mode
         const timer = setTimeout(() => {
           startOcrScanner('ocr-video', async (cleanText) => {
             if (scanningItem) {
@@ -1406,61 +1405,8 @@ export default function PickTab() {
           stopOcrScanner();
         };
       }
-    }, [scannerMode, scanningItem]);
-    
-    if (scannerMode === 'barcode') {
-      return (
-        <div 
-          id="reader" 
-          ref={scannerRef} 
-          style={{ 
-            width: '100%', 
-            maxHeight: '260px', 
-            overflow: 'hidden', 
-            borderRadius: '8px', 
-            border: '1px solid var(--line)', 
-            background: '#000' 
-          }} 
-        />
-      );
-    } else {
-      return (
-        <div style={{ position: 'relative', width: '100%', maxHeight: '260px', overflow: 'hidden', borderRadius: '8px', border: '1px solid var(--line)', background: '#000' }}>
-          <video id="ocr-video" autoPlay playsInline style={{ width: '100%', height: 'auto', display: 'block' }} />
-          <div style={{
-            position: 'absolute',
-            top: '50%', left: '10%', right: '10%',
-            height: '40px',
-            transform: 'translateY(-50%)',
-            border: '2px dashed var(--teal)',
-            borderRadius: '4px',
-            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.4)',
-            pointerEvents: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--teal)',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}>
-            Align SKU Text Here
-          </div>
-          {ocrProcessing && (
-            <div style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: 'var(--teal)' }}>
-              Parsing text...
-            </div>
-          )}
-          {ocrReadText && (
-            <div style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: 'var(--snow)' }}>
-              Read: <code style={{ fontFamily: 'DM Mono, monospace' }}>{ocrReadText}</code>
-            </div>
-          )}
-        </div>
-      );
     }
-  };
+  }, [scannerOpen, scannerMode, scanningItem, scannerSuccess]);
 
   // Progress metrics helper
   const getPickedCount = (order: ActiveOrder) => {
@@ -2228,7 +2174,54 @@ export default function PickTab() {
                   <span>Match Confirmed!</span>
                 </div>
               ) : (
-                <CameraScanner />
+                scannerMode === 'barcode' ? (
+                  <div 
+                    id="reader" 
+                    ref={pickScannerRef} 
+                    style={{ 
+                      width: '100%', 
+                      maxHeight: '260px', 
+                      overflow: 'hidden', 
+                      borderRadius: '8px', 
+                      border: '1px solid var(--line)', 
+                      background: '#000' 
+                    }} 
+                  />
+                ) : (
+                  <div style={{ position: 'relative', width: '100%', maxHeight: '260px', overflow: 'hidden', borderRadius: '8px', border: '1px solid var(--line)', background: '#000' }}>
+                    <video id="ocr-video" autoPlay playsInline style={{ width: '100%', height: 'auto', display: 'block' }} />
+                    <div style={{
+                      position: 'absolute',
+                      top: '50%', left: '10%', right: '10%',
+                      height: '40px',
+                      transform: 'translateY(-50%)',
+                      border: '2px dashed var(--teal)',
+                      borderRadius: '4px',
+                      boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.4)',
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--teal)',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Align SKU Text Here
+                    </div>
+                    {ocrProcessing && (
+                      <div style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: 'var(--teal)' }}>
+                        Parsing text...
+                      </div>
+                    )}
+                    {ocrReadText && (
+                      <div style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.7)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: 'var(--snow)' }}>
+                        Read: <code style={{ fontFamily: 'DM Mono, monospace' }}>{ocrReadText}</code>
+                      </div>
+                    )}
+                  </div>
+                )
               )}
               
               {/* Green / Red flash overlays */}
