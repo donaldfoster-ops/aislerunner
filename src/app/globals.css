@@ -829,4 +829,57 @@ body {
   }
 }
 
+/* Pick Item Card Mobile Overrides */
+.pick-item-card {
+  display: grid;
+  grid-template-columns: 120px 1fr 150px;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .pick-item-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px !important;
+  }
+  
+  .pick-item-cubicle {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    text-align: left !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+  
+  .pick-item-cubicle > div {
+    margin-bottom: 0 !important;
+  }
+  
+  .pick-item-action {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    border-top: 1px solid var(--line) !important;
+    padding-top: 12px !important;
+    margin-top: 4px !important;
+    gap: 12px !important;
+  }
+  
+  .pick-item-qty {
+    font-size: 13px !important;
+  }
+  
+  .pick-item-action button {
+    width: auto !important;
+    flex: 1 !important;
+  }
+}
+
 

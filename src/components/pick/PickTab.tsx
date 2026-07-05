@@ -1751,6 +1751,7 @@ export default function PickTab() {
             return (
               <div 
                 key={`${item.sku}-${idx}`}
+                className="pick-item-card"
                 style={{
                   padding: '16px',
                   borderRadius: 'var(--r)',
@@ -1768,7 +1769,7 @@ export default function PickTab() {
                 }}
               >
                 {/* Cubicle location badge */}
-                <div style={{
+                <div className="pick-item-cubicle" style={{
                   padding: '10px',
                   borderRadius: 'var(--rs)',
                   background: locationBg,
@@ -1784,7 +1785,7 @@ export default function PickTab() {
                 </div>
                 
                 {/* Item details */}
-                <div style={{ minWidth: 0 }}>
+                <div className="pick-item-details" style={{ minWidth: 0 }}>
                   <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--snow)', marginBottom: '4px' }}>
                     {item.title}
                   </div>
@@ -1800,8 +1801,8 @@ export default function PickTab() {
                 </div>
                 
                 {/* Status / Pick button */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                  <div style={{ fontSize: '13px', color: 'var(--snow2)', fontWeight: 500 }}>
+                <div className="pick-item-action" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  <div className="pick-item-qty" style={{ fontSize: '13px', color: 'var(--snow2)', fontWeight: 500 }}>
                     Qty: <strong>{item.picked_qty} / {item.qty}</strong>
                   </div>
                   
