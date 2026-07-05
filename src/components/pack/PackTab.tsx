@@ -34,6 +34,8 @@ export default function PackTab() {
   const [isOrderComplete, setIsOrderComplete] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [lastLabelUrl, setLastLabelUrl] = useState<string | null>(null);
+  const [lastLabelOrder, setLastLabelOrder] = useState<string | null>(null);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -318,14 +320,11 @@ export default function PackTab() {
 
   // Fetch mock label PDF base64 and print to selected printer via QZ Tray
   const autoPrintLabel = async (order: ActiveOrder) => {
-    if (!qzConnected || !selectedPrinter) {
-      setPrintError('Cannot print. QZ Tray is not connected or no printer is selected.');
-      return;
-    }
-
     setIsPrinting(true);
     setPrintError('');
     setPrintStatus('Generating shipping label...');
+    setLastLabelUrl(null);
+    setLastLabelOrder(null);
 
     try {
       // Fetch label from API
@@ -333,6 +332,35 @@ export default function PackTab() {
       const data = await res.json();
 
       if (data.error) throw new Error(data.error);
+
+      // Convert base64 to Blob URL for local mobile download/viewing
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      setLastLabelUrl(blobUrl);
+      setLastLabelOrder(order.order_number);
+
+      if (!qzConnected || !selectedPrinter) {
+        // Direct print unavailable, complete order and prompt mobile user to view PDF!
+        triggerToast('success', `Order #${order.order_number} packed successfully! PDF Label generated.`);
+        
+        try {
+          window.open(blobUrl, '_blank');
+        } catch (e) {}
+
+        // Archive/delete order locally since it has been fulfilled
+        await deleteActiveOrder(order.order_id);
+        await loadLocalOrders();
+        setSelectedOrder(null);
+        setIsOrderComplete(false);
+        return;
+      }
 
       setPrintStatus(`Sending print job to ${selectedPrinter}...`);
 
@@ -548,6 +576,36 @@ export default function PackTab() {
             <p style={{ maxWidth: '400px', textAlign: 'center', fontSize: '13px' }}>
               Select a picked order from the sidebar list, or scan an order barcode to verify contents and print the shipping label.
             </p>
+            
+            {lastLabelUrl && (
+              <div style={{
+                marginTop: '24px',
+                padding: '20px',
+                background: 'var(--teal-dim)',
+                border: '1px solid var(--teal-line)',
+                borderRadius: 'var(--r)',
+                textAlign: 'center',
+                maxWidth: '400px',
+                animation: 'slideInUp 0.3s ease-out'
+              }}>
+                <span style={{ fontSize: '24px' }}>🎉</span>
+                <h4 style={{ color: 'var(--teal)', fontSize: '15px', fontWeight: 600, marginTop: '8px' }}>
+                  Order #{lastLabelOrder} Packed!
+                </h4>
+                <p style={{ color: 'var(--snow3)', fontSize: '12px', marginTop: '6px', marginBottom: '16px' }}>
+                  The simulated thermal shipping label PDF has been generated.
+                </p>
+                <a 
+                  href={lastLabelUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-primary"
+                  style={{ textDecoration: 'none', justifyContent: 'center', display: 'inline-flex' }}
+                >
+                  📥 Open / Download PDF Label
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
