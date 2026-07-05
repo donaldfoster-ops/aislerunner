@@ -854,7 +854,7 @@ export default function PickTab() {
       
       ocrIntervalRef.current = setInterval(async () => {
         const v = document.getElementById(videoElementId) as HTMLVideoElement;
-        if (!v || v.readyState !== v.HAVE_ENOUGH_DATA || !worker) return;
+        if (!v || v.readyState < 2 || !worker) return;
         
         try {
           const canvas = document.createElement('canvas');
