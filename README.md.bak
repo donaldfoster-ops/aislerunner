@@ -1,0 +1,43 @@
+# Mazonkiki Admin Assistant
+
+Claude-powered Shopify admin tool for mazonkiki.com — SEO editing, schema generation, theme editing, redirect management, and debugging.
+
+## Deploy to Vercel (5 minutes)
+
+### 1. Create GitHub repo
+- Go to github.com → New repository
+- Name: `mazonkiki-admin`
+- Private repository
+- Upload all files from this folder
+
+### 2. Connect to Vercel
+- Go to vercel.com → Add New Project
+- Import your `mazonkiki-admin` GitHub repo
+- Click Deploy (it will fail first time — that's ok, we need env vars)
+
+### 3. Add environment variables
+In Vercel dashboard → Your project → Settings → Environment Variables, add:
+
+| Name | Value |
+|---|---|
+| `SHOPIFY_TOKEN` | Your Shopify access token (shpat_...) |
+| `ANTHROPIC_KEY` | Your Anthropic API key (sk-ant-...) |
+| `STORE_URL` | `mazonkiki.myshopify.com` |
+
+### 4. Redeploy
+- Go to Deployments → click the three dots → Redeploy
+- Your app will be live at `https://mazonkiki-admin-xxxx.vercel.app`
+
+## Features
+
+- 💬 **AI Chat** — Claude assistant with full store context and audit findings
+- 🔍 **SEO Editor** — Edit meta titles, descriptions, alt text, URL handles, metafields per product
+- ⚡ **Schema Generator** — Generate Organization, Product, and FAQ schema JSON-LD
+- 🎨 **Theme Editor** — View and edit Shopify theme Liquid files
+- 🔗 **Redirect Manager** — Create and manage 301 redirects
+- 🐛 **Debug Console** — Inspect any product's full data, run GraphQL queries
+
+## Security
+- All API keys stored as Vercel environment variables (never in code)
+- App is private — share the URL only with yourself
+- No data stored — all reads/writes go directly to Shopify

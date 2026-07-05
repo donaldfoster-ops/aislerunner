@@ -1,0 +1,11 @@
+{
+  "name": "mazonkiki-admin-assistant",
+  "version": "1.0.0",
+  "description": "Claude-powered Shopify admin assistant for Mazonkiki",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
