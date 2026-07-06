@@ -846,14 +846,22 @@ export default function PickTab() {
 
   const handleIntakeSubmit = async () => {
     if (!lookupResult) return;
-    const qtyParsed = parseInt(intakeQty, 10);
 
-    if (isNaN(qtyParsed) || qtyParsed < 0) {
+    const isQtyInputEmpty = intakeQty.trim() === '';
+    const qtyParsed = isQtyInputEmpty ? 0 : parseInt(intakeQty, 10);
+
+    if (!isQtyInputEmpty && (isNaN(qtyParsed) || qtyParsed < 0)) {
       setIntakeError("Please enter a valid quantity (0 or greater).");
       return;
     }
 
     const hasLocationChanged = intakeLocation.trim() !== (lookupResult.cubicle || '').trim();
+    const hasQtyChanged = !isQtyInputEmpty;
+
+    if (!hasLocationChanged && !hasQtyChanged) {
+      setIntakeError("No changes specified. Please change the storage location or enter an intake quantity.");
+      return;
+    }
 
     // 1. Confirm Location Change
     if (hasLocationChanged) {
@@ -865,7 +873,7 @@ export default function PickTab() {
     }
 
     // 2. Confirm Overwrite
-    if (intakeMode === 'set') {
+    if (hasQtyChanged && intakeMode === 'set') {
       const oldQty = lookupResult.inventory_quantity ?? 0;
       if (!confirm(`⚠️ Warning: You are about to OVERWRITE the stock level of this product from ${oldQty} to ${qtyParsed}. This is a destructive audit. Are you sure you want to proceed?`)) {
         return;
@@ -877,19 +885,27 @@ export default function PickTab() {
     setIntakeSuccess(null);
 
     try {
+      const bodyPayload: any = {
+        action: 'updateStockAndLocation',
+        product_id: lookupResult.product_id,
+        variant_id: lookupResult.variant_id,
+        inventory_item_id: lookupResult.inventory_item_id
+      };
+
+      if (hasLocationChanged) {
+        bodyPayload.cubicle = intakeLocation.trim();
+      }
+
+      if (hasQtyChanged) {
+        bodyPayload.mode = intakeMode;
+        bodyPayload.quantity = qtyParsed;
+        bodyPayload.changeFromQuantity = lookupResult.inventory_quantity ?? 0;
+      }
+
       const res = await fetch('/api/shopify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'updateStockAndLocation',
-          product_id: lookupResult.product_id,
-          variant_id: lookupResult.variant_id,
-          inventory_item_id: lookupResult.inventory_item_id,
-          mode: intakeMode,
-          quantity: qtyParsed,
-          cubicle: intakeLocation.trim(),
-          changeFromQuantity: lookupResult.inventory_quantity ?? 0
-        })
+        body: JSON.stringify(bodyPayload)
       });
 
       if (!res.ok) {
@@ -899,7 +915,9 @@ export default function PickTab() {
 
       // Calculate updated quantity
       const oldQty = lookupResult.inventory_quantity ?? 0;
-      const updatedQty = intakeMode === 'set' ? qtyParsed : oldQty + qtyParsed;
+      const updatedQty = hasQtyChanged
+        ? (intakeMode === 'set' ? qtyParsed : oldQty + qtyParsed)
+        : oldQty;
 
       // Update local catalog cache
       const updatedItem: CatalogItem = {
@@ -916,7 +934,10 @@ export default function PickTab() {
       setLookupResult(updatedItem);
 
       // Trigger success alert
-      setIntakeSuccess(`✓ Successfully updated ${lookupResult.title}! Location: "${intakeLocation.trim() || 'None'}", Stock: ${updatedQty}.`);
+      const successParts = [];
+      if (hasLocationChanged) successParts.push(`Location set to "${intakeLocation.trim() || 'None'}"`);
+      if (hasQtyChanged) successParts.push(`Stock updated to ${updatedQty}`);
+      setIntakeSuccess(`✓ Successfully updated ${lookupResult.title}! ${successParts.join(' & ')}.`);
       setIntakeQty('');
       
       // Sync local orders in case the location changed and active orders need the new location
