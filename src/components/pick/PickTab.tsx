@@ -2410,7 +2410,7 @@ export default function PickTab() {
                     border: '1px solid var(--line)',
                     borderRadius: '4px',
                     padding: '6px 10px',
-                    color: '#fff',
+                    color: 'var(--snow)',
                     fontSize: '12px',
                     outline: 'none'
                   }}
@@ -2646,7 +2646,7 @@ export default function PickTab() {
                     border: '1px solid var(--line)',
                     borderRadius: '4px',
                     padding: '8px 12px',
-                    color: '#fff',
+                    color: 'var(--snow)',
                     fontSize: '13px',
                     outline: 'none'
                   }}
@@ -2966,7 +2966,7 @@ export default function PickTab() {
                             border: '1px solid var(--line)',
                             borderRadius: '4px',
                             padding: '8px 12px',
-                            color: '#fff',
+                            color: 'var(--snow)',
                             fontSize: '13px',
                             outline: 'none'
                           }}
@@ -2999,7 +2999,7 @@ export default function PickTab() {
                             border: '1px solid var(--line)',
                             borderRadius: '4px',
                             padding: '8px 12px',
-                            color: '#fff',
+                            color: 'var(--snow)',
                             fontSize: '13px',
                             outline: 'none'
                           }}
