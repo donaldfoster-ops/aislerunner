@@ -7,6 +7,7 @@ const PackTab = dynamic(() => import('@/components/pack/PackTab'), { ssr: false 
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('pick');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -16,8 +17,30 @@ export default function Home() {
           .then((reg) => console.log('ServiceWorker registered with scope:', reg.scope))
           .catch((err) => console.error('ServiceWorker registration failed:', err));
       }
+
+      // Initialize theme
+      const savedTheme = localStorage.getItem('ar-theme') as 'dark' | 'light';
+      if (savedTheme === 'light') {
+        setTheme('light');
+        document.documentElement.classList.add('light-theme');
+      } else {
+        setTheme('dark');
+        document.documentElement.classList.remove('light-theme');
+      }
     }
   }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    localStorage.setItem('ar-theme', newTheme);
+    
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme');
+    }
+  };
 
   return (
     <>
@@ -40,6 +63,28 @@ export default function Home() {
         </nav>
 
         <div className="header-right">
+          <button 
+            onClick={toggleTheme}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              borderRadius: 'var(--rs)',
+              border: '1px solid var(--line2)',
+              background: 'var(--ink3)',
+              color: 'var(--snow2)',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              transition: 'all 0.15s'
+            }}
+            title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+          </button>
+
           <div className="store-status">
             <div className="status-dot"></div>
             mazonkiki.myshopify.com

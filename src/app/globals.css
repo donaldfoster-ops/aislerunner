@@ -24,6 +24,35 @@
   --amber-dim: rgba(240,163,72,0.1);
   --r: 10px; --rs: 6px; --rl: 16px;
 }
+
+.light-theme {
+  --ink: #f4f5f8;
+  --ink2: #ffffff;
+  --ink3: #e6e8f0;
+  --ink4: #d8dbe5;
+  --line: rgba(0,0,0,0.08);
+  --line2: rgba(0,0,0,0.14);
+  --snow: #111115;
+  --snow2: #3f3f50;
+  --snow3: #6b6b80;
+  --snow4: #9292a8;
+  
+  --gold: #b38600;
+  --gold2: #8a6500;
+  --gold-dim: rgba(179,134,0,0.08);
+  --gold-line: rgba(179,134,0,0.18);
+  
+  --teal: #0d8c77;
+  --teal-dim: rgba(13,140,119,0.08);
+  --teal-line: rgba(13,140,119,0.18);
+  
+  --rose: #cc3333;
+  --rose-dim: rgba(204,51,51,0.08);
+  --rose-line: rgba(204,51,51,0.18);
+  
+  --amber: #cc6600;
+  --amber-dim: rgba(204,102,0,0.08);
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
