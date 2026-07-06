@@ -237,7 +237,8 @@ export async function POST(req: Request) {
                     {
                       inventoryItemId: inventory_item_id,
                       locationId: primaryLocationId,
-                      delta: parseInt(quantity, 10)
+                      delta: parseInt(quantity, 10),
+                      changeFromQuantity: changeFromQuantity !== undefined && changeFromQuantity !== null ? parseInt(changeFromQuantity, 10) : 0
                     }
                   ]
                 }
