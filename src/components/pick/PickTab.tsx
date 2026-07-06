@@ -738,10 +738,19 @@ export default function PickTab() {
                       sku
                       barcode
                       inventoryQuantity
+                      image {
+                        url
+                      }
+                      inventoryItem {
+                        id
+                      }
                       product {
                         id
                         title
                         vendor
+                        featuredImage {
+                          url
+                        }
                         productLocation: metafield(namespace: "mzk", key: "cubicle_location") {
                           value
                         }
@@ -771,16 +780,19 @@ export default function PickTab() {
               const pLoc = node.product.productLocation?.value || '';
               const vLoc = node.variantLocation?.value || '';
               const cubicle = vLoc || pLoc || '';
+              const imageUrl = node.image?.url || node.product.featuredImage?.url || '';
               
               const resolvedItem: CatalogItem = {
                 sku: node.sku || q,
                 barcode: node.barcode || '',
                 product_id: node.product.id,
                 variant_id: node.id,
+                inventory_item_id: node.inventoryItem?.id || '',
                 title: node.title === 'Default Title' ? node.product.title : `${node.product.title} - ${node.title}`,
                 cubicle: cubicle.trim(),
                 vendor: node.product.vendor || '',
                 inventory_quantity: node.inventoryQuantity || 0,
+                image_url: imageUrl,
                 last_synced: Date.now()
               };
               setLookupResult(resolvedItem);
@@ -2796,14 +2808,49 @@ export default function PickTab() {
                   gap: '12px',
                   animation: 'slideInUp 0.2s ease-out'
                 }}>
-                  <div>
-                    {lookupResult.vendor && (
-                      <div style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
-                        Brand: {lookupResult.vendor}
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    {lookupResult.image_url ? (
+                      <img 
+                        src={lookupResult.image_url} 
+                        alt={lookupResult.title}
+                        style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '6px',
+                          objectFit: 'cover',
+                          background: 'var(--ink)',
+                          border: '1px solid var(--line)',
+                          flexShrink: 0
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '6px',
+                        background: 'var(--ink)',
+                        border: '1px solid var(--line)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '20px',
+                        color: 'var(--snow4)',
+                        flexShrink: 0
+                      }}>
+                        📦
                       </div>
                     )}
-                    <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--snow4)', letterSpacing: '0.05em', display: 'block', marginBottom: '2px' }}>Product Title</span>
-                    <strong style={{ color: 'var(--snow)', fontSize: '14.5px' }}>{lookupResult.title}</strong>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      {lookupResult.vendor && (
+                        <div style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                          Brand: {lookupResult.vendor}
+                        </div>
+                      )}
+                      <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--snow4)', letterSpacing: '0.05em', display: 'block', marginBottom: '2px' }}>Product Title</span>
+                      <strong style={{ color: 'var(--snow)', fontSize: '14.5px', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={lookupResult.title}>
+                        {lookupResult.title}
+                      </strong>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

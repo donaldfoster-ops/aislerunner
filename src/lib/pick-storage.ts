@@ -11,6 +11,7 @@ export interface CatalogItem {
   cubicle: string;
   vendor: string;
   inventory_quantity?: number;
+  image_url?: string;
   last_synced: number;
 }
 
@@ -22,6 +23,7 @@ export interface OrderLineItem {
   cubicle: string;
   picked: boolean;
   picked_qty?: number;
+  image_url?: string;
 }
 
 export interface ActiveOrder {

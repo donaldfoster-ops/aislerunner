@@ -329,6 +329,9 @@ export async function GET(req: Request) {
                   id
                   title
                   vendor
+                  featuredImage {
+                    url
+                  }
                   productLocation: metafield(namespace: "mzk", key: "cubicle_location") {
                     value
                   }
@@ -340,6 +343,9 @@ export async function GET(req: Request) {
                         sku
                         barcode
                         inventoryQuantity
+                        image {
+                          url
+                        }
                         inventoryItem {
                           id
                         }
@@ -374,6 +380,7 @@ export async function GET(req: Request) {
           const product = edge.node;
           const pLoc = product.productLocation?.value || '';
           const vendor = product.vendor || '';
+          const featuredImg = product.featuredImage?.url || '';
 
           const variants = product.variants?.edges || [];
           for (const vEdge of variants) {
@@ -384,6 +391,7 @@ export async function GET(req: Request) {
             const barcode = variant.barcode || '';
             const vLoc = variant.variantLocation?.value || '';
             const cubicle = vLoc || pLoc || '';
+            const imageUrl = variant.image?.url || featuredImg || '';
 
             catalogMap[sku] = {
               sku,
@@ -395,6 +403,7 @@ export async function GET(req: Request) {
               cubicle: cubicle.trim(),
               vendor,
               inventory_quantity: variant.inventoryQuantity || 0,
+              image_url: imageUrl,
               last_synced: Date.now()
             };
           }
