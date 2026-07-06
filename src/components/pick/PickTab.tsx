@@ -1708,7 +1708,7 @@ export default function PickTab() {
               marginTop: '8px'
             }}
           >
-            🔍 Stock Lookup
+            🔍 Storage & Stock Manager
           </button>
         </div>
 
@@ -2607,9 +2607,9 @@ export default function PickTab() {
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ color: 'var(--snow)', fontFamily: 'Syne, sans-serif', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🔍 Stock Checker
+                  🔍 Storage & Stock Manager
                 </h3>
-                <p style={{ color: 'var(--snow3)', fontSize: '12px', marginTop: '2px' }}>Scan barcode or enter SKU to inspect stock levels</p>
+                <p style={{ color: 'var(--snow3)', fontSize: '12px', marginTop: '2px' }}>Scan barcode or SKU to manage locations & intake stock</p>
               </div>
               <button 
                 onClick={() => { stopLookupScanning(); setIsStockLookupOpen(false); }}
