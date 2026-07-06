@@ -751,12 +751,24 @@ export default function PickTab() {
                         featuredImage {
                           url
                         }
-                        productLocation: metafield(namespace: "mzk", key: "cubicle_location") {
-                          value
+                        metafields(first: 10) {
+                          edges {
+                            node {
+                              namespace
+                              key
+                              value
+                            }
+                          }
                         }
                       }
-                      variantLocation: metafield(namespace: "mzk", key: "cubicle_location") {
-                        value
+                      metafields(first: 10) {
+                        edges {
+                          node {
+                            namespace
+                            key
+                            value
+                          }
+                        }
                       }
                     }
                   }
@@ -777,8 +789,14 @@ export default function PickTab() {
             const edges = data.data?.productVariants?.edges || [];
             if (edges.length > 0) {
               const node = edges[0].node;
-              const pLoc = node.product.productLocation?.value || '';
-              const vLoc = node.variantLocation?.value || '';
+              const productMetafields = node.product.metafields?.edges?.map((e: any) => e.node) || [];
+              const pLocMeta = productMetafields.find((m: any) => (m.namespace === 'mzk' || m.namespace === 'mk') && m.key === 'cubicle_location');
+              const pLoc = pLocMeta?.value || '';
+
+              const variantMetafields = node.metafields?.edges?.map((e: any) => e.node) || [];
+              const vLocMeta = variantMetafields.find((m: any) => (m.namespace === 'mzk' || m.namespace === 'mk') && m.key === 'cubicle_location');
+              const vLoc = vLocMeta?.value || '';
+
               const cubicle = vLoc || pLoc || '';
               const imageUrl = node.image?.url || node.product.featuredImage?.url || '';
               

@@ -335,8 +335,14 @@ export async function GET(req: Request) {
                   featuredImage {
                     url
                   }
-                  productLocation: metafield(namespace: "mzk", key: "cubicle_location") {
-                    value
+                  metafields(first: 10) {
+                    edges {
+                      node {
+                        namespace
+                        key
+                        value
+                      }
+                    }
                   }
                   variants(first: 50) {
                     edges {
@@ -352,8 +358,14 @@ export async function GET(req: Request) {
                         inventoryItem {
                           id
                         }
-                        variantLocation: metafield(namespace: "mzk", key: "cubicle_location") {
-                          value
+                        metafields(first: 10) {
+                          edges {
+                            node {
+                              namespace
+                              key
+                              value
+                            }
+                          }
                         }
                       }
                     }
@@ -381,7 +393,9 @@ export async function GET(req: Request) {
         const products = data.data?.products?.edges || [];
         for (const edge of products) {
           const product = edge.node;
-          const pLoc = product.productLocation?.value || '';
+          const productMetafields = product.metafields?.edges?.map((e: any) => e.node) || [];
+          const pLocMeta = productMetafields.find((m: any) => (m.namespace === 'mzk' || m.namespace === 'mk') && m.key === 'cubicle_location');
+          const pLoc = pLocMeta?.value || '';
           const vendor = product.vendor || '';
           const featuredImg = product.featuredImage?.url || '';
 
@@ -392,7 +406,9 @@ export async function GET(req: Request) {
             if (!sku) continue;
 
             const barcode = variant.barcode || '';
-            const vLoc = variant.variantLocation?.value || '';
+            const variantMetafields = variant.metafields?.edges?.map((e: any) => e.node) || [];
+            const vLocMeta = variantMetafields.find((m: any) => (m.namespace === 'mzk' || m.namespace === 'mk') && m.key === 'cubicle_location');
+            const vLoc = vLocMeta?.value || '';
             const cubicle = vLoc || pLoc || '';
             const imageUrl = variant.image?.url || featuredImg || '';
 
