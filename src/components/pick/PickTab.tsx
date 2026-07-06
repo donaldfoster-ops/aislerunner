@@ -42,6 +42,19 @@ interface PickSession {
   lineItems: SessionLineItem[];
 }
 
+interface OfflineIntakeItem {
+  id: string;
+  product_id: string;
+  variant_id: string;
+  inventory_item_id?: string;
+  mode?: 'add' | 'set';
+  quantity?: number;
+  cubicle?: string;
+  changeFromQuantity?: number;
+  title: string;
+  timestamp: number;
+}
+
 export default function PickTab() {
   const [mounted, setMounted] = useState<boolean>(false);
   useEffect(() => {
@@ -53,6 +66,7 @@ export default function PickTab() {
   const [syncStatus, setSyncStatus] = useState<string>('');
   const [syncError, setSyncError] = useState<string>('');
   const [lastSyncedCatalog, setLastSyncedCatalog] = useState<number | null>(null);
+  const [offlineIntakes, setOfflineIntakes] = useState<OfflineIntakeItem[]>([]);
   
   // Local data states
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
@@ -230,10 +244,95 @@ export default function PickTab() {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('lastSyncedCatalog');
       if (stored) setLastSyncedCatalog(Number(stored));
+      const storedQueue = localStorage.getItem('ar_offline_intakes');
+      if (storedQueue) {
+        try {
+          setOfflineIntakes(JSON.parse(storedQueue));
+        } catch (e) {
+          console.error("Failed to parse offline intakes:", e);
+        }
+      }
     }
     loadLocalOrders();
     loadPendingQueue();
   }, []);
+
+  const saveOfflineIntakeQueue = (queue: OfflineIntakeItem[]) => {
+    setOfflineIntakes(queue);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ar_offline_intakes', JSON.stringify(queue));
+    }
+  };
+
+  // Silent auto-sync for background catalog alignment
+  const handleSyncCatalogSilent = async () => {
+    if (!navigator.onLine) return;
+    try {
+      const res = await fetch('/api/shopify?action=syncCatalog');
+      if (!res.ok) return;
+      const catalogMap = await res.json();
+      await saveCatalog(catalogMap);
+      const timestamp = Date.now();
+      setLastSyncedCatalog(timestamp);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('lastSyncedCatalog', timestamp.toString());
+      }
+      if (lookupResult) {
+        const latest = catalogMap[lookupResult.sku];
+        if (latest) setLookupResult(latest);
+      }
+    } catch (err) {
+      console.warn('Silent auto-sync failed:', err);
+    }
+  };
+
+  // Back-sync offline intakes/location allocations to Shopify
+  const flushOfflineIntakes = async () => {
+    if (offlineIntakes.length === 0 || !navigator.onLine) return;
+
+    setSyncStatus(`Syncing ${offlineIntakes.length} offline stock/location updates to Shopify...`);
+    setSyncError('');
+
+    let successCount = 0;
+    const remainingQueue = [...offlineIntakes];
+
+    for (const item of offlineIntakes) {
+      try {
+        const res = await fetch('/api/shopify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'updateStockAndLocation',
+            product_id: item.product_id,
+            variant_id: item.variant_id,
+            inventory_item_id: item.inventory_item_id,
+            cubicle: item.cubicle,
+            mode: item.mode,
+            quantity: item.quantity,
+            changeFromQuantity: item.changeFromQuantity
+          })
+        });
+
+        if (res.ok) {
+          successCount++;
+          const index = remainingQueue.findIndex(q => q.id === item.id);
+          if (index !== -1) remainingQueue.splice(index, 1);
+        }
+      } catch (err) {
+        console.warn("Failed to sync offline intake item:", item.title, err);
+      }
+    }
+
+    saveOfflineIntakeQueue(remainingQueue);
+
+    if (successCount > 0) {
+      setSyncStatus(`✓ Successfully back-synced ${successCount} offline updates to Shopify!`);
+      setTimeout(() => setSyncStatus(''), 4000);
+      await handleSyncCatalogSilent();
+    } else {
+      setSyncStatus('');
+    }
+  };
 
   // Monitor connectivity status
   const checkOnlineStatus = async () => {
@@ -261,12 +360,24 @@ export default function PickTab() {
     };
   }, []);
 
-  // Auto-flush queue when online transitions to true
+  // Auto-flush queues when online transitions to true
   useEffect(() => {
-    if (isOnline && pendingQueue.length > 0) {
-      flushPickQueue();
+    if (isOnline) {
+      if (pendingQueue.length > 0) flushPickQueue();
+      if (offlineIntakes.length > 0) flushOfflineIntakes();
     }
-  }, [isOnline, pendingQueue.length]);
+  }, [isOnline, pendingQueue.length, offlineIntakes.length]);
+
+  // Periodic silent sync & queue flush (every 5 minutes)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (isOnline) {
+        handleSyncCatalogSilent();
+        flushOfflineIntakes();
+      }
+    }, 300000); // 5 minutes
+    return () => clearInterval(timer);
+  }, [isOnline, offlineIntakes]);
 
   // Load orders from IndexedDB
   const loadLocalOrders = async () => {
@@ -884,7 +995,49 @@ export default function PickTab() {
     setIntakeError(null);
     setIntakeSuccess(null);
 
+    // Calculate updated quantity
+    const oldQty = lookupResult.inventory_quantity ?? 0;
+    const updatedQty = hasQtyChanged
+      ? (intakeMode === 'set' ? qtyParsed : oldQty + qtyParsed)
+      : oldQty;
+
     try {
+      if (!isOnline) {
+        // Save to offline queue
+        const offlineItem: OfflineIntakeItem = {
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          product_id: lookupResult.product_id,
+          variant_id: lookupResult.variant_id,
+          inventory_item_id: lookupResult.inventory_item_id,
+          mode: hasQtyChanged ? intakeMode : undefined,
+          quantity: hasQtyChanged ? qtyParsed : undefined,
+          cubicle: hasLocationChanged ? intakeLocation.trim() : undefined,
+          changeFromQuantity: hasQtyChanged ? oldQty : undefined,
+          title: lookupResult.title,
+          timestamp: Date.now()
+        };
+
+        const updatedQueue = [...offlineIntakes, offlineItem];
+        saveOfflineIntakeQueue(updatedQueue);
+
+        // Update local database immediately so UI reflects it offline
+        const updatedItem: CatalogItem = {
+          ...lookupResult,
+          cubicle: intakeLocation.trim(),
+          inventory_quantity: updatedQty,
+          last_synced: Date.now()
+        };
+        const { saveCatalogItem } = require('@/lib/pick-storage');
+        await saveCatalogItem(updatedItem);
+        setLookupResult(updatedItem);
+
+        setIntakeSuccess(`✓ Saved offline! Location: "${intakeLocation.trim() || 'None'}", Stock: ${updatedQty}. Will sync when online.`);
+        setIntakeQty('');
+        await loadLocalOrders();
+        setIntakeLoading(false);
+        return;
+      }
+
       const bodyPayload: any = {
         action: 'updateStockAndLocation',
         product_id: lookupResult.product_id,
@@ -899,7 +1052,7 @@ export default function PickTab() {
       if (hasQtyChanged) {
         bodyPayload.mode = intakeMode;
         bodyPayload.quantity = qtyParsed;
-        bodyPayload.changeFromQuantity = lookupResult.inventory_quantity ?? 0;
+        bodyPayload.changeFromQuantity = oldQty;
       }
 
       const res = await fetch('/api/shopify', {
@@ -912,12 +1065,6 @@ export default function PickTab() {
         const errData = await res.json();
         throw new Error(errData.error || `Server responded with status ${res.status}`);
       }
-
-      // Calculate updated quantity
-      const oldQty = lookupResult.inventory_quantity ?? 0;
-      const updatedQty = hasQtyChanged
-        ? (intakeMode === 'set' ? qtyParsed : oldQty + qtyParsed)
-        : oldQty;
 
       // Update local catalog cache
       const updatedItem: CatalogItem = {
@@ -1699,6 +1846,39 @@ export default function PickTab() {
           </div>
         )}
 
+        {/* Offline Intakes Queue Counter */}
+        {offlineIntakes.length > 0 && (
+          <div style={{
+            padding: '10px 16px',
+            background: 'var(--teal-dim)',
+            borderBottom: '1px solid var(--line)',
+            color: 'var(--teal)',
+            fontSize: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>⏳ Unsynced bin/stock updates: <strong>{offlineIntakes.length}</strong></span>
+            {isOnline && (
+              <button 
+                onClick={flushOfflineIntakes}
+                style={{ 
+                  background: 'var(--teal)', 
+                  border: 'none', 
+                  color: 'var(--ink)', 
+                  padding: '2px 8px', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: 600
+                }}
+              >
+                Sync Now
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Sync/Load Order Form (Online only) */}
         <div style={{ padding: '16px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)' }}>
           <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--snow2)', marginBottom: '8px' }}>LOAD & SYNC ORDERS</div>
@@ -1716,7 +1896,7 @@ export default function PickTab() {
                 border: '1px solid var(--line)',
                 borderRadius: '4px',
                 padding: '6px 10px',
-                color: '#fff',
+                color: 'var(--snow)',
                 fontSize: '12px',
                 outline: 'none'
               }}
