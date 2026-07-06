@@ -93,6 +93,7 @@ export default function PickTab() {
   const [isLookupScanning, setIsLookupScanning] = useState<boolean>(false);
   const lookupScannerRef = useRef<any>(null);
   const pickScannerRef = useRef<HTMLDivElement | null>(null);
+  const pickModalInputRef = useRef<HTMLInputElement>(null);
 
   // OCR and Torch states
   const [scannerMode, setScannerMode] = useState<'barcode' | 'ocr'>('barcode');
@@ -1408,6 +1409,18 @@ export default function PickTab() {
     }
   }, [scannerOpen, scannerMode, scanningItem, scannerSuccess]);
 
+  // Auto-focus hardware scanner input when verification modal opens
+  useEffect(() => {
+    if (scannerOpen) {
+      const timer = setTimeout(() => {
+        if (pickModalInputRef.current) {
+          pickModalInputRef.current.focus();
+        }
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [scannerOpen]);
+
   // Progress metrics helper
   const getPickedCount = (order: ActiveOrder) => {
     return order.line_items.filter(item => item.picked).length;
@@ -2256,16 +2269,24 @@ export default function PickTab() {
               paddingTop: '16px',
               marginTop: '16px'
             }}>
-              <div style={{ fontSize: '11px', color: 'var(--snow3)', fontWeight: 600, marginBottom: '8px' }}>
-                DESKTOP TESTING SIMULATOR
+              <div style={{ fontSize: '11px', color: 'var(--snow3)', fontWeight: 600, marginBottom: '8px', letterSpacing: '0.05em' }}>
+                HARDWARE SCANNER / MANUAL INPUT
               </div>
               
               <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
                 <input 
                   type="text" 
-                  placeholder="Simulate Scanned Barcode/SKU"
+                  ref={pickModalInputRef}
+                  placeholder="Scan barcode or type SKU here..."
                   value={scannedCode}
                   onChange={(e) => setScannedCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && scannedCode.trim()) {
+                      initAudioContext();
+                      handleBarcodeScanned(scannedCode);
+                      setScannedCode('');
+                    }
+                  }}
                   style={{
                     flex: 1,
                     background: 'var(--ink)',
@@ -2278,7 +2299,7 @@ export default function PickTab() {
                   }}
                 />
                 <button 
-                  onClick={() => { initAudioContext(); handleBarcodeScanned(scannedCode); }}
+                  onClick={() => { initAudioContext(); handleBarcodeScanned(scannedCode); setScannedCode(''); }}
                   disabled={!scannedCode.trim()}
                   className="btn"
                   style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--ink3)', color: 'var(--teal)' }}
