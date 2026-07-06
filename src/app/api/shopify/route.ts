@@ -72,6 +72,187 @@ export async function POST(req: Request) {
       }
     }
 
+    if (action === 'updateStockAndLocation') {
+      const { product_id, variant_id, inventory_item_id, mode, quantity, cubicle } = bodyData;
+
+      if (!variant_id || !product_id) {
+        return NextResponse.json({ error: 'product_id and variant_id are required' }, { status: 400 });
+      }
+
+      const results: any = {};
+
+      // 1. Update location metafield (Owner ID is variant_id)
+      if (cubicle !== undefined) {
+        const setMetafieldQuery = `
+          mutation SetMetafield($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields {
+                id
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `;
+
+        const metafieldRes = await fetch(`https://${STORE_URL}/admin/api/${API_VERSION}/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+          },
+          body: JSON.stringify({
+            query: setMetafieldQuery,
+            variables: {
+              metafields: [
+                {
+                  ownerId: variant_id,
+                  namespace: "mzk",
+                  key: "cubicle_location",
+                  value: cubicle.trim(),
+                  type: "single_line_text_field"
+                }
+              ]
+            }
+          }),
+        });
+
+        const metafieldData = await metafieldRes.json();
+        if (metafieldData.errors || metafieldData.data?.metafieldsSet?.userErrors?.length > 0) {
+          const errors = metafieldData.errors || metafieldData.data.metafieldsSet.userErrors;
+          return NextResponse.json({ error: `Location update failed: ${JSON.stringify(errors)}` }, { status: 400 });
+        }
+        results.location = metafieldData.data;
+      }
+
+      // 2. Adjust/set stock level in Shopify
+      if (quantity !== undefined && inventory_item_id) {
+        // Fetch active locations
+        const locQuery = `
+          query {
+            locations(first: 1) {
+              edges {
+                node {
+                  id
+                }
+              }
+            }
+          }
+        `;
+        const locRes = await fetch(`https://${STORE_URL}/admin/api/${API_VERSION}/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+          },
+          body: JSON.stringify({ query: locQuery }),
+        });
+        const locData = await locRes.json();
+        const primaryLocationId = locData.data?.locations?.edges[0]?.node?.id;
+
+        if (!primaryLocationId) {
+          return NextResponse.json({ error: 'No active Shopify locations found to update inventory.' }, { status: 400 });
+        }
+
+        if (mode === 'set') {
+          // Set (overwrite) inventory
+          const setInvQuery = `
+            mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
+              inventorySetQuantities(input: $input) {
+                inventoryAdjustmentGroup {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `;
+
+          const invRes = await fetch(`https://${STORE_URL}/admin/api/${API_VERSION}/graphql.json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+            },
+            body: JSON.stringify({
+              query: setInvQuery,
+              variables: {
+                input: {
+                  reason: "correction",
+                  name: "available",
+                  quantities: [
+                    {
+                      inventoryItemId: inventory_item_id,
+                      locationId: primaryLocationId,
+                      quantity: parseInt(quantity, 10)
+                    }
+                  ]
+                }
+              }
+            }),
+          });
+          const invData = await invRes.json();
+          if (invData.errors || invData.data?.inventorySetQuantities?.userErrors?.length > 0) {
+            const errors = invData.errors || invData.data.inventorySetQuantities.userErrors;
+            return NextResponse.json({ error: `Inventory update failed: ${JSON.stringify(errors)}` }, { status: 400 });
+          }
+          results.inventory = invData.data;
+        } else {
+          // Adjust (add/delta) inventory
+          const adjInvQuery = `
+            mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
+              inventoryAdjustQuantities(input: $input) {
+                inventoryAdjustmentGroup {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `;
+
+          const invRes = await fetch(`https://${STORE_URL}/admin/api/${API_VERSION}/graphql.json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+            },
+            body: JSON.stringify({
+              query: adjInvQuery,
+              variables: {
+                input: {
+                  reason: "restocking",
+                  name: "available",
+                  changes: [
+                    {
+                      inventoryItemId: inventory_item_id,
+                      locationId: primaryLocationId,
+                      delta: parseInt(quantity, 10)
+                    }
+                  ]
+                }
+              }
+            }),
+          });
+          const invData = await invRes.json();
+          if (invData.errors || invData.data?.inventoryAdjustQuantities?.userErrors?.length > 0) {
+            const errors = invData.errors || invData.data.inventoryAdjustQuantities.userErrors;
+            return NextResponse.json({ error: `Inventory adjustment failed: ${JSON.stringify(errors)}` }, { status: 400 });
+          }
+          results.inventory = invData.data;
+        }
+      }
+
+      return NextResponse.json({ success: true, results });
+    }
+
     const { method = 'GET', endpoint, body, graphql, variables } = bodyData;
     let url, shopifyMethod, shopifyBody;
 
@@ -159,6 +340,9 @@ export async function GET(req: Request) {
                         sku
                         barcode
                         inventoryQuantity
+                        inventoryItem {
+                          id
+                        }
                         variantLocation: metafield(namespace: "mzk", key: "cubicle_location") {
                           value
                         }
@@ -206,6 +390,7 @@ export async function GET(req: Request) {
               barcode,
               product_id: product.id,
               variant_id: variant.id,
+              inventory_item_id: variant.inventoryItem?.id || '',
               title: variant.title === 'Default Title' ? product.title : `${product.title} - ${variant.title}`,
               cubicle: cubicle.trim(),
               vendor,

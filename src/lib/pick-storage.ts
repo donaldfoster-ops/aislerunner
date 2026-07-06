@@ -6,6 +6,7 @@ export interface CatalogItem {
   barcode: string;
   product_id: string;
   variant_id: string;
+  inventory_item_id?: string;
   title: string;
   cubicle: string;
   vendor: string;
@@ -81,6 +82,18 @@ export async function saveCatalog(catalogMap: Record<string, CatalogItem>): Prom
     Object.values(catalogMap).forEach((item) => {
       store.put(item);
     });
+  });
+}
+
+export async function saveCatalogItem(item: CatalogItem): Promise<void> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('catalog_map', 'readwrite');
+    const store = transaction.objectStore('catalog_map');
+    const request = store.put(item);
+    
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
   });
 }
 

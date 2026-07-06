@@ -95,6 +95,15 @@ export default function PickTab() {
   const pickScannerRef = useRef<HTMLDivElement | null>(null);
   const pickModalInputRef = useRef<HTMLInputElement>(null);
 
+  // Intake Panel States
+  const [isIntakeOpen, setIsIntakeOpen] = useState<boolean>(false);
+  const [intakeLocation, setIntakeLocation] = useState<string>('');
+  const [intakeQty, setIntakeQty] = useState<string>('');
+  const [intakeMode, setIntakeMode] = useState<'add' | 'set'>('add');
+  const [intakeLoading, setIntakeLoading] = useState<boolean>(false);
+  const [intakeSuccess, setIntakeSuccess] = useState<string | null>(null);
+  const [intakeError, setIntakeError] = useState<string | null>(null);
+
   // OCR and Torch states
   const [scannerMode, setScannerMode] = useState<'barcode' | 'ocr'>('barcode');
   const [isTorchOn, setIsTorchOn] = useState<boolean>(false);
@@ -790,6 +799,102 @@ export default function PickTab() {
       setLookupError('Lookup error: ' + err.message);
     } finally {
       setLookupLoading(false);
+    }
+  };
+
+  // Pre-fill intake fields when stock lookup returns a result
+  useEffect(() => {
+    if (lookupResult) {
+      setIntakeLocation(lookupResult.cubicle || '');
+      setIntakeQty('');
+      setIntakeMode('add');
+      setIntakeSuccess(null);
+      setIntakeError(null);
+      setIsIntakeOpen(false); // Collapsed by default
+    }
+  }, [lookupResult]);
+
+  const handleIntakeSubmit = async () => {
+    if (!lookupResult) return;
+    const qtyParsed = parseInt(intakeQty, 10);
+
+    if (isNaN(qtyParsed) || qtyParsed < 0) {
+      setIntakeError("Please enter a valid quantity (0 or greater).");
+      return;
+    }
+
+    const hasLocationChanged = intakeLocation.trim() !== (lookupResult.cubicle || '').trim();
+
+    // 1. Confirm Location Change
+    if (hasLocationChanged) {
+      const oldLoc = lookupResult.cubicle || 'None';
+      const newLoc = intakeLocation.trim() || 'None';
+      if (!confirm(`⚠️ Warning: You are changing the storage location for this product from "${oldLoc}" to "${newLoc}". Are you sure you want to proceed?`)) {
+        return;
+      }
+    }
+
+    // 2. Confirm Overwrite
+    if (intakeMode === 'set') {
+      const oldQty = lookupResult.inventory_quantity ?? 0;
+      if (!confirm(`⚠️ Warning: You are about to OVERWRITE the stock level of this product from ${oldQty} to ${qtyParsed}. This is a destructive audit. Are you sure you want to proceed?`)) {
+        return;
+      }
+    }
+
+    setIntakeLoading(true);
+    setIntakeError(null);
+    setIntakeSuccess(null);
+
+    try {
+      const res = await fetch('/api/shopify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateStockAndLocation',
+          product_id: lookupResult.product_id,
+          variant_id: lookupResult.variant_id,
+          inventory_item_id: lookupResult.inventory_item_id,
+          mode: intakeMode,
+          quantity: qtyParsed,
+          cubicle: intakeLocation.trim()
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || `Server responded with status ${res.status}`);
+      }
+
+      // Calculate updated quantity
+      const oldQty = lookupResult.inventory_quantity ?? 0;
+      const updatedQty = intakeMode === 'set' ? qtyParsed : oldQty + qtyParsed;
+
+      // Update local catalog cache
+      const updatedItem: CatalogItem = {
+        ...lookupResult,
+        cubicle: intakeLocation.trim(),
+        inventory_quantity: updatedQty,
+        last_synced: Date.now()
+      };
+
+      const { saveCatalogItem } = require('@/lib/pick-storage');
+      await saveCatalogItem(updatedItem);
+
+      // Also update lookupResult state immediately
+      setLookupResult(updatedItem);
+
+      // Trigger success alert
+      setIntakeSuccess(`✓ Successfully updated ${lookupResult.title}! Location: "${intakeLocation.trim() || 'None'}", Stock: ${updatedQty}.`);
+      setIntakeQty('');
+      
+      // Sync local orders in case the location changed and active orders need the new location
+      await loadLocalOrders();
+    } catch (err: any) {
+      console.error('Intake submit failed:', err);
+      setIntakeError(`Failed: ${err.message}`);
+    } finally {
+      setIntakeLoading(false);
     }
   };
 
@@ -2755,6 +2860,174 @@ export default function PickTab() {
                   <div style={{ fontSize: '10px', color: 'var(--snow4)', textAlign: 'right', marginTop: '4px' }}>
                     Last Synced: {lookupResult.last_synced ? new Date(lookupResult.last_synced).toLocaleTimeString() : 'Just now'}
                   </div>
+                </div>
+              )}
+
+              {/* Inbound Intake Panel */}
+              {lookupResult && (
+                <div style={{
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--r)',
+                  background: 'var(--ink2)',
+                  overflow: 'hidden',
+                  marginTop: '12px'
+                }}>
+                  {/* Panel Toggle Header */}
+                  <button
+                    onClick={() => setIsIntakeOpen(!isIntakeOpen)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      background: 'var(--ink3)',
+                      border: 'none',
+                      color: 'var(--snow2)',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      outline: 'none'
+                    }}
+                  >
+                    <span>📦 Inbound Stock Intake & Locations</span>
+                    <span>{isIntakeOpen ? '▲' : '▼'}</span>
+                  </button>
+
+                  {isIntakeOpen && (
+                    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid var(--line)' }}>
+                      
+                      {/* Location allocation input */}
+                      <div>
+                        <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Storage Cubicle
+                        </label>
+                        <input 
+                          type="text" 
+                          value={intakeLocation}
+                          onChange={(e) => setIntakeLocation(e.target.value)}
+                          placeholder="e.g. C-12, SR-3, None..."
+                          style={{
+                            width: '100%',
+                            background: 'var(--ink)',
+                            border: '1px solid var(--line)',
+                            borderRadius: '4px',
+                            padding: '8px 12px',
+                            color: '#fff',
+                            fontSize: '13px',
+                            outline: 'none'
+                          }}
+                        />
+                        {lookupResult.cubicle ? (
+                          <span style={{ fontSize: '11px', color: 'var(--snow4)', display: 'block', marginTop: '4px' }}>
+                            💡 Currently assigned to <strong>{lookupResult.cubicle}</strong>. Is it going here?
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '11px', color: 'var(--gold)', display: 'block', marginTop: '4px' }}>
+                            ⚠️ No location assigned! Please allocate a new storage cubicle.
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Quantity input */}
+                      <div>
+                        <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Intake Quantity
+                        </label>
+                        <input 
+                          type="number" 
+                          value={intakeQty}
+                          onChange={(e) => setIntakeQty(e.target.value)}
+                          placeholder="Number of items to add/set..."
+                          min="0"
+                          style={{
+                            width: '100%',
+                            background: 'var(--ink)',
+                            border: '1px solid var(--line)',
+                            borderRadius: '4px',
+                            padding: '8px 12px',
+                            color: '#fff',
+                            fontSize: '13px',
+                            outline: 'none'
+                          }}
+                        />
+                      </div>
+
+                      {/* Intake Mode (Add vs Set) */}
+                      <div>
+                        <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Update Method
+                        </label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: intakeMode === 'add' ? 'var(--teal-dim)' : 'var(--ink)', border: intakeMode === 'add' ? '1px solid var(--teal-line)' : '1px solid var(--line)', borderRadius: '6px', color: intakeMode === 'add' ? 'var(--teal)' : 'var(--snow3)', cursor: 'pointer', fontSize: '12px' }}>
+                            <input 
+                              type="radio" 
+                              name="intakeMode" 
+                              checked={intakeMode === 'add'} 
+                              onChange={() => setIntakeMode('add')} 
+                              style={{ accentColor: 'var(--teal)' }}
+                            />
+                            <div>
+                              <strong style={{ display: 'block' }}>Add Stock</strong>
+                              <span style={{ fontSize: '10px', color: 'var(--snow4)' }}>Adds to current level</span>
+                            </div>
+                          </label>
+
+                          <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: intakeMode === 'set' ? 'var(--rose-dim)' : 'var(--ink)', border: intakeMode === 'set' ? '1px solid var(--rose-line)' : '1px solid var(--line)', borderRadius: '6px', color: intakeMode === 'set' ? 'var(--rose)' : 'var(--snow3)', cursor: 'pointer', fontSize: '12px' }}>
+                            <input 
+                              type="radio" 
+                              name="intakeMode" 
+                              checked={intakeMode === 'set'} 
+                              onChange={() => setIntakeMode('set')} 
+                              style={{ accentColor: 'var(--rose)' }}
+                            />
+                            <div>
+                              <strong style={{ display: 'block' }}>Overwrite Stock</strong>
+                              <span style={{ fontSize: '10px', color: 'var(--snow4)' }}>Destructive stock audit</span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Intake Success/Error display */}
+                      {intakeError && (
+                        <div style={{ padding: '8px 12px', background: 'var(--rose-dim)', border: '1px solid var(--rose-line)', color: 'var(--rose)', borderRadius: '4px', fontSize: '12px' }}>
+                          ⚠️ {intakeError}
+                        </div>
+                      )}
+                      {intakeSuccess && (
+                        <div style={{ padding: '8px 12px', background: 'var(--teal-dim)', border: '1px solid var(--teal-line)', color: 'var(--teal)', borderRadius: '4px', fontSize: '12px' }}>
+                          {intakeSuccess}
+                        </div>
+                      )}
+
+                      {/* Submit button */}
+                      <button
+                        onClick={handleIntakeSubmit}
+                        disabled={intakeLoading || !intakeQty.trim()}
+                        className="btn btn-primary"
+                        style={{
+                          width: '100%',
+                          justifyContent: 'center',
+                          padding: '10px',
+                          fontSize: '13px',
+                          background: 'var(--gold)',
+                          borderColor: 'var(--gold-line)',
+                          color: 'var(--ink)'
+                        }}
+                      >
+                        {intakeLoading ? (
+                          <>
+                            <div className="spinner" style={{ borderColor: 'var(--ink) transparent var(--ink) transparent', width: '12px', height: '12px', borderWidth: '2px', display: 'inline-block', marginRight: '6px' }} />
+                            Updating Shopify...
+                          </>
+                        ) : (
+                          '💾 Save Location & Stock Intake'
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
