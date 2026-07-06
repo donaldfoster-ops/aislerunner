@@ -231,7 +231,7 @@ export async function POST(req: Request) {
               variables: {
                 idempotencyKey: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
                 input: {
-                  reason: "restocking",
+                  reason: "restock",
                   name: "available",
                   changes: [
                     {
