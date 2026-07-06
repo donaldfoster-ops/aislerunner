@@ -2597,7 +2597,9 @@ export default function PickTab() {
             borderRadius: 'var(--rl)',
             width: '100%',
             maxWidth: '460px',
-            maxHeight: '85vh',
+            height: '80vh',
+            maxHeight: '680px',
+            minHeight: '450px',
             display: 'flex',
             flexDirection: 'column',
             boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
@@ -2620,7 +2622,7 @@ export default function PickTab() {
             </div>
 
             {/* Body */}
-            <div style={{ padding: '20px 24px', overflowY: 'auto', maxHeight: 'calc(85vh - 160px)', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Lookup input & action */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input 
