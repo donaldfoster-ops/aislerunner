@@ -2622,7 +2622,7 @@ export default function PickTab() {
             </div>
 
             {/* Body */}
-            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
               {/* Lookup input & action */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input 
