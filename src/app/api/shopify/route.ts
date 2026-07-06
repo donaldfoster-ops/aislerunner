@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     }
 
     if (action === 'updateStockAndLocation') {
-      const { product_id, variant_id, inventory_item_id, mode, quantity, cubicle } = bodyData;
+      const { product_id, variant_id, inventory_item_id, mode, quantity, cubicle, changeFromQuantity } = bodyData;
 
       if (!variant_id || !product_id) {
         return NextResponse.json({ error: 'product_id and variant_id are required' }, { status: 400 });
@@ -189,7 +189,8 @@ export async function POST(req: Request) {
                     {
                       inventoryItemId: inventory_item_id,
                       locationId: primaryLocationId,
-                      quantity: parseInt(quantity, 10)
+                      quantity: parseInt(quantity, 10),
+                      changeFromQuantity: changeFromQuantity !== undefined && changeFromQuantity !== null ? parseInt(changeFromQuantity, 10) : 0
                     }
                   ]
                 }

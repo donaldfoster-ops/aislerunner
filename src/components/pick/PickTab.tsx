@@ -869,7 +869,8 @@ export default function PickTab() {
           inventory_item_id: lookupResult.inventory_item_id,
           mode: intakeMode,
           quantity: qtyParsed,
-          cubicle: intakeLocation.trim()
+          cubicle: intakeLocation.trim(),
+          changeFromQuantity: lookupResult.inventory_quantity ?? 0
         })
       });
 
