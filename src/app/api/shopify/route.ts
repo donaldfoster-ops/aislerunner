@@ -160,8 +160,8 @@ export async function POST(req: Request) {
         if (mode === 'set') {
           // Set (overwrite) inventory
           const setInvQuery = `
-            mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
-              inventorySetQuantities(input: $input) {
+            mutation inventorySetQuantities($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+              inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
                 inventoryAdjustmentGroup {
                   id
                 }
@@ -182,6 +182,7 @@ export async function POST(req: Request) {
             body: JSON.stringify({
               query: setInvQuery,
               variables: {
+                idempotencyKey: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
                 input: {
                   reason: "correction",
                   name: "available",
@@ -206,8 +207,8 @@ export async function POST(req: Request) {
         } else {
           // Adjust (add/delta) inventory
           const adjInvQuery = `
-            mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!) {
-              inventoryAdjustQuantities(input: $input) {
+            mutation inventoryAdjustQuantities($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+              inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
                 inventoryAdjustmentGroup {
                   id
                 }
@@ -228,6 +229,7 @@ export async function POST(req: Request) {
             body: JSON.stringify({
               query: adjInvQuery,
               variables: {
+                idempotencyKey: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
                 input: {
                   reason: "restocking",
                   name: "available",
