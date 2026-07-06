@@ -2586,10 +2586,11 @@ export default function PickTab() {
           background: 'rgba(15, 15, 18, 0.8)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '16px'
+          padding: '24px 16px',
+          overflowY: 'auto'
         }}>
           <div style={{
             background: 'var(--ink2)',
@@ -2597,13 +2598,10 @@ export default function PickTab() {
             borderRadius: 'var(--rl)',
             width: '100%',
             maxWidth: '460px',
-            height: '80vh',
-            maxHeight: '680px',
-            minHeight: '450px',
             display: 'flex',
             flexDirection: 'column',
             boxShadow: '0 12px 36px rgba(0,0,0,0.5)',
-            overflow: 'hidden'
+            margin: '0 auto'
           }}>
             {/* Header */}
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2622,7 +2620,7 @@ export default function PickTab() {
             </div>
 
             {/* Body */}
-            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Lookup input & action */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input 
