@@ -2799,13 +2799,13 @@ export default function PickTab() {
                   animation: 'slideInUp 0.2s ease-out'
                 }}>
                   <div>
-                    <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--snow4)', letterSpacing: '0.05em', display: 'block', marginBottom: '2px' }}>Product Title</span>
-                    <strong style={{ color: 'var(--snow)', fontSize: '14.5px' }}>{lookupResult.title}</strong>
                     {lookupResult.vendor && (
-                      <div style={{ fontSize: '11px', color: 'var(--teal)', marginTop: '2px', fontWeight: 500 }}>
-                        Vendor: <span style={{ color: 'var(--snow3)' }}>{lookupResult.vendor}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                        Brand: {lookupResult.vendor}
                       </div>
                     )}
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--snow4)', letterSpacing: '0.05em', display: 'block', marginBottom: '2px' }}>Product Title</span>
+                    <strong style={{ color: 'var(--snow)', fontSize: '14.5px' }}>{lookupResult.title}</strong>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
