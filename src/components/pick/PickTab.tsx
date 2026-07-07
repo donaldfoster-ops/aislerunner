@@ -1058,10 +1058,16 @@ export default function PickTab() {
 
     // 1. Confirm Location Change
     if (hasLocationChanged) {
-      const oldLoc = lookupResult.cubicle || 'None';
+      const rawOldLoc = (lookupResult.cubicle || '').trim();
+      const oldLoc = rawOldLoc || 'None';
       const newLoc = intakeLocation.trim() || 'None';
-      if (!confirm(`⚠️ Warning: You are changing the storage location for this product from "${oldLoc}" to "${newLoc}". Are you sure you want to proceed?`)) {
-        return;
+      
+      const isOldLocPresent = rawOldLoc !== '' && rawOldLoc.toLowerCase() !== 'unknown' && rawOldLoc.toLowerCase() !== 'none';
+      
+      if (isOldLocPresent) {
+        if (!confirm(`⚠️ Warning: You are changing the storage location for this product from "${oldLoc}" to "${newLoc}". Are you sure you want to proceed?`)) {
+          return;
+        }
       }
     }
 
