@@ -43,6 +43,10 @@ export default function PackTab() {
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [mobileView, setMobileView] = useState<'list' | 'workspace'>('list');
 
+  // Camera scan state
+  const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -784,6 +788,25 @@ export default function PackTab() {
                   >
                     Verify Scan
                   </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsCameraOpen(true)}
+                    className="btn"
+                    style={{ 
+                      padding: '10px 14px', 
+                      background: 'var(--ink3)', 
+                      border: '1px solid var(--line)', 
+                      borderRadius: '8px', 
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    title="Scan Barcode via Camera"
+                  >
+                    📷
+                  </button>
                 </form>
 
                 {/* Audit message log / status alert */}
@@ -902,6 +925,106 @@ export default function PackTab() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* CAMERA SCAN MODAL OVERLAY */}
+      {isCameraOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(10, 10, 12, 0.95)',
+          zIndex: 2000,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          backdropFilter: 'blur(8px)'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '480px',
+            background: 'var(--ink2)',
+            border: '1px solid var(--line)',
+            borderRadius: '16px',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            animation: 'fadeInScale 0.25s ease-out'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '18px', fontWeight: 600, color: 'var(--snow)' }}>
+                📷 Camera Barcode Scanner
+              </h3>
+              <button 
+                onClick={() => setIsCameraOpen(false)}
+                style={{
+                  background: 'var(--ink3)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--snow3)',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'var(--snow3)', margin: 0 }}>
+              Align the barcode of the product inside the scan box below.
+            </p>
+
+            {cameraError && (
+              <div style={{
+                background: 'var(--rose-dim)',
+                border: '1px solid var(--rose-line)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                color: 'var(--rose)',
+                fontSize: '12px',
+                lineHeight: '1.4'
+              }}>
+                ⚠️ {cameraError}
+              </div>
+            )}
+
+            <div 
+              id="pack-reader" 
+              style={{ 
+                width: '100%', 
+                overflow: 'hidden', 
+                borderRadius: '12px', 
+                border: '1px solid var(--line)',
+                background: '#000'
+              }}
+            ></div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              <button
+                onClick={() => setIsCameraOpen(false)}
+                className="btn"
+                style={{ 
+                  flex: 1, 
+                  justifyContent: 'center', 
+                  background: 'var(--ink3)', 
+                  border: '1px solid var(--line)',
+                  padding: '10px',
+                  fontSize: '13px'
+                }}
+              >
+                Cancel / Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
