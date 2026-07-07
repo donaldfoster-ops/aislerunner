@@ -755,21 +755,30 @@ export default function PackTab() {
               )}
 
               {/* Verification Barcode Scan Input Bar */}
-              <div style={{ padding: '20px 30px', background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
-                <form onSubmit={handleBarcodeSubmit} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--snow2)', whiteSpace: 'nowrap' }}>
-                    👉 SCAN ITEM:
-                  </div>
+              <div style={{ padding: isMobile ? '12px 16px' : '20px 30px', background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
+                <form onSubmit={handleBarcodeSubmit} style={{ 
+                  display: 'flex', 
+                  gap: isMobile ? '8px' : '12px', 
+                  alignItems: 'center',
+                  width: '100%',
+                  flexWrap: 'nowrap'
+                }}>
+                  {!isMobile && (
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--snow2)', whiteSpace: 'nowrap' }}>
+                      👉 SCAN ITEM:
+                    </div>
+                  )}
                   <input 
                     type="text" 
                     ref={barcodeInputRef}
                     value={barcodeInput}
                     disabled={isOrderComplete}
                     onChange={(e) => setBarcodeInput(e.target.value)}
-                    placeholder={isOrderComplete ? "Order fully audited" : "Scan item barcode or type SKU..."}
+                    placeholder={isOrderComplete ? "Audited" : (isMobile ? "Scan or type code..." : "Scan item barcode or type SKU...")}
                     style={{
                       flex: 1,
-                      padding: '10px 16px',
+                      minWidth: '50px',
+                      padding: '10px 12px',
                       borderRadius: '8px',
                       background: 'var(--ink)',
                       border: '1px solid var(--line)',
@@ -784,16 +793,21 @@ export default function PackTab() {
                     type="submit" 
                     className="btn btn-primary"
                     disabled={isOrderComplete || !barcodeInput.trim()}
-                    style={{ padding: '10px 20px', fontSize: '13px' }}
+                    style={{ 
+                      padding: isMobile ? '10px 12px' : '10px 20px', 
+                      fontSize: '13px',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
                   >
-                    Verify Scan
+                    {isMobile ? 'Verify' : 'Verify Scan'}
                   </button>
                   <button 
                     type="button" 
                     onClick={() => setIsCameraOpen(true)}
                     className="btn"
                     style={{ 
-                      padding: '10px 14px', 
+                      padding: isMobile ? '10px 12px' : '10px 14px', 
                       background: 'var(--ink3)', 
                       border: '1px solid var(--line)', 
                       borderRadius: '8px', 
@@ -801,7 +815,8 @@ export default function PackTab() {
                       cursor: 'pointer',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      flexShrink: 0
                     }}
                     title="Scan Barcode via Camera"
                   >
