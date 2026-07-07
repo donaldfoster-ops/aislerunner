@@ -67,6 +67,7 @@ export default function PickTab() {
   const [syncError, setSyncError] = useState<string>('');
   const [lastSyncedCatalog, setLastSyncedCatalog] = useState<number | null>(null);
   const [offlineIntakes, setOfflineIntakes] = useState<OfflineIntakeItem[]>([]);
+  const [hasNotificationPermission, setHasNotificationPermission] = useState<boolean>(false);
   
   // Local data states
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
@@ -378,6 +379,87 @@ export default function PickTab() {
     }, 300000); // 5 minutes
     return () => clearInterval(timer);
   }, [isOnline, offlineIntakes]);
+
+  // Request browser Notification permissions on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setHasNotificationPermission(true);
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          setHasNotificationPermission(permission === 'granted');
+        });
+      }
+    }
+  }, []);
+
+  // Check for new unfulfilled orders and trigger notifications
+  useEffect(() => {
+    let isFirstLoad = true;
+    const seenIds = new Set<string>();
+
+    const triggerOrderNotification = (orderNumber: string, customerName: string) => {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(`📦 New Order ${orderNumber}`, {
+            body: `Customer: ${customerName}. Ready to pick!`,
+            icon: '/icons/icon-192.png'
+          });
+        } catch (e) {
+          console.warn('Failed to display HTML5 notification:', e);
+        }
+      }
+    };
+
+    const checkNewOrders = async () => {
+      if (!isOnline) return;
+      try {
+        const res = await fetch('/api/shopify?action=getUnfulfilledOrders');
+        if (!res.ok) return;
+        const orders: ActiveOrder[] = await res.json();
+        
+        const newOrdersToNotify: ActiveOrder[] = [];
+        
+        orders.forEach(order => {
+          if (!seenIds.has(order.order_id)) {
+            seenIds.add(order.order_id);
+            if (!isFirstLoad) {
+              newOrdersToNotify.push(order);
+            }
+          }
+        });
+
+        if (isFirstLoad) {
+          isFirstLoad = false;
+          const storedSeen = localStorage.getItem('ar_seen_orders');
+          if (storedSeen) {
+            try {
+              const parsed = JSON.parse(storedSeen);
+              parsed.forEach((id: string) => seenIds.add(id));
+            } catch (e) {}
+          } else {
+            localStorage.setItem('ar_seen_orders', JSON.stringify(Array.from(seenIds)));
+          }
+        } else if (newOrdersToNotify.length > 0) {
+          localStorage.setItem('ar_seen_orders', JSON.stringify(Array.from(seenIds)));
+          
+          newOrdersToNotify.forEach(order => {
+            triggerOrderNotification(order.order_number, order.customer_name);
+          });
+          
+          // Sync local orders in case new orders were loaded
+          await loadLocalOrders();
+        }
+      } catch (err) {
+        console.warn('Failed to check for new orders:', err);
+      }
+    };
+
+    // Check every 2 minutes
+    checkNewOrders();
+    const interval = setInterval(checkNewOrders, 120000);
+    return () => clearInterval(interval);
+  }, [isOnline]);
 
   // Load orders from IndexedDB
   const loadLocalOrders = async () => {
