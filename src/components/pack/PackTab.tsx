@@ -39,6 +39,19 @@ export default function PackTab() {
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
+  // Responsive layout state
+  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [mobileView, setMobileView] = useState<'list' | 'workspace'>('list');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = windowWidth <= 768;
+
   // Initialize and load orders
   useEffect(() => {
     loadLocalOrders();
@@ -255,6 +268,7 @@ export default function PackTab() {
     setAuditMessage(null);
     setIsOrderComplete(false);
     setBarcodeInput('');
+    setMobileView('workspace');
   };
 
   // Search by order number string input
@@ -270,6 +284,7 @@ export default function PackTab() {
     if (found) {
       handleSelectOrder(found);
       setSearchOrderNumber('');
+      setMobileView('workspace');
     } else {
       triggerToast('error', `Order #${cleanSearch} not found (or not marked as fully picked).`);
     }
@@ -478,7 +493,13 @@ export default function PackTab() {
   };
 
   return (
-    <div className="pack-layout" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', flex: 1, overflow: 'hidden' }}>
+    <div className="pack-layout" style={{ 
+      display: isMobile ? 'flex' : 'grid', 
+      gridTemplateColumns: isMobile ? undefined : '320px 1fr', 
+      flexDirection: isMobile ? 'column' : undefined,
+      flex: 1, 
+      overflow: 'hidden' 
+    }}>
       
       {/* Toast Alert overlay */}
       {toast && (
@@ -501,355 +522,388 @@ export default function PackTab() {
       )}
 
       {/* LEFT SIDEBAR: Config & Ready Orders */}
-      <div className="pack-sidebar" style={{ background: 'var(--ink2)', borderRight: '1px solid var(--line)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        
-        {/* QZ Tray Connection Config */}
-        <div style={{ padding: '20px', borderBottom: '1px solid var(--line)', background: 'rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--snow3)' }}>Printer Connection</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ 
-                width: '8px', height: '8px', borderRadius: '50%', 
-                background: qzConnected ? 'var(--teal)' : 'var(--rose)',
-                boxShadow: qzConnected ? '0 0 8px var(--teal)' : 'none'
-              }}></span>
-              <span style={{ fontSize: '11px', fontWeight: 500, color: qzConnected ? 'var(--teal)' : 'var(--rose)' }}>{qzStatus}</span>
-            </div>
-          </div>
-
-          {!qzConnected ? (
-            <button className="btn" onClick={initQzConnection} style={{ width: '100%', fontSize: '12px', padding: '6px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', color: 'var(--snow)' }}>
-              🔄 Reconnect QZ Tray
-            </button>
-          ) : (
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '4px' }}>Target Label Printer</label>
-              <select 
-                value={selectedPrinter} 
-                onChange={handlePrinterChange}
-                style={{ 
-                  width: '100%', padding: '7px', background: 'var(--ink3)', border: '1px solid var(--line)', 
-                  borderRadius: '6px', color: 'var(--snow2)', fontSize: '12px', marginBottom: '10px',
-                  fontFamily: 'DM Sans, sans-serif'
-                }}
+      {(!isMobile || mobileView === 'list') && (
+        <div className="pack-sidebar" style={{ 
+          width: isMobile ? '100%' : '320px',
+          background: 'var(--ink2)', 
+          borderRight: '1px solid var(--line)', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          overflow: 'hidden',
+          height: '100%'
+        }}>
+          
+          {/* Mobile direct download overlay */}
+          {isMobile && lastLabelUrl && (
+            <div style={{
+              padding: '16px 20px',
+              background: 'var(--teal-dim)',
+              borderBottom: '1px solid var(--teal-line)',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ color: 'var(--teal)', fontSize: '13px', fontWeight: 600 }}>
+                🎉 Order #{lastLabelOrder} Packed!
+              </div>
+              <a 
+                href={lastLabelUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-primary"
+                style={{ textDecoration: 'none', justifyContent: 'center', fontSize: '11px', padding: '4px 10px', display: 'inline-flex' }}
               >
-                {printers.map((p, idx) => (
-                  <option key={idx} value={p}>{p}</option>
-                ))}
-              </select>
-              <button 
-                className="btn" 
-                onClick={handlePrintTestLabel} 
-                disabled={isPrinting}
-                style={{ width: '100%', fontSize: '11px', padding: '5px', background: 'transparent', border: '1px dashed var(--line2)', color: 'var(--snow3)' }}
-              >
-                🖨️ Print Test 4x6 Page
-              </button>
+                📥 Download PDF Label
+              </a>
             </div>
           )}
-        </div>
 
-        {/* Ready to Pack Orders list */}
-        <div style={{ padding: '20px 20px 10px 20px', borderBottom: '1px solid var(--line)' }}>
-          <form onSubmit={handleSearchOrder} style={{ display: 'flex', gap: '6px' }}>
-            <input 
-              type="text" 
-              placeholder="Search Order Number (e.g. 1027)..." 
-              value={searchOrderNumber}
-              onChange={(e) => setSearchOrderNumber(e.target.value)}
-              style={{ 
-                flex: 1, padding: '7px 12px', borderRadius: '6px', background: 'var(--ink3)', 
-                border: '1px solid var(--line)', color: 'var(--snow)', fontSize: '12px',
-                fontFamily: 'DM Mono, monospace'
-              }}
-            />
-            <button type="submit" className="btn" style={{ padding: '7px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', fontSize: '12px' }}>🔍</button>
-          </form>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }}>
-          <div style={{ padding: '10px 20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--snow3)', letterSpacing: '0.05em' }}>
-            Ready to Pack ({activeOrders.length})
-          </div>
-
-          {activeOrders.length === 0 ? (
-            <div style={{ padding: '30px 20px', color: 'var(--snow4)', textAlign: 'center', fontSize: '13px' }}>
-              No orders fully picked yet.<br />
-              Complete picking on mobile to load orders here.
+          {/* QZ Tray Connection Config */}
+          <div style={{ padding: '20px', borderBottom: '1px solid var(--line)', background: 'rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--snow3)' }}>Printer Connection</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ 
+                  width: '8px', height: '8px', borderRadius: '50%', 
+                  background: qzConnected ? 'var(--teal)' : 'var(--rose)',
+                  boxShadow: qzConnected ? '0 0 8px var(--teal)' : 'none'
+                }}></span>
+                <span style={{ fontSize: '11px', fontWeight: 500, color: qzConnected ? 'var(--teal)' : 'var(--rose)' }}>{qzStatus}</span>
+              </div>
             </div>
-          ) : (
-            activeOrders.map((order) => {
-              const isSelected = selectedOrder?.order_id === order.order_id;
-              return (
-                <div 
-                  key={order.order_id}
-                  onClick={() => handleSelectOrder(order)}
-                  style={{
-                    padding: '14px 20px',
-                    borderBottom: '1px solid var(--line)',
-                    cursor: 'pointer',
-                    background: isSelected ? 'var(--ink3)' : 'transparent',
-                    borderLeft: isSelected ? '3px solid var(--gold)' : '3px solid transparent',
-                    transition: 'all 0.15s'
+
+            {!qzConnected ? (
+              <button className="btn" onClick={initQzConnection} style={{ width: '100%', fontSize: '12px', padding: '6px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', color: 'var(--snow)' }}>
+                🔄 Reconnect QZ Tray
+              </button>
+            ) : (
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '4px' }}>Target Label Printer</label>
+                <select 
+                  value={selectedPrinter} 
+                  onChange={handlePrinterChange}
+                  style={{ 
+                    width: '100%', padding: '7px', background: 'var(--ink3)', border: '1px solid var(--line)', 
+                    borderRadius: '6px', color: 'var(--snow2)', fontSize: '12px', marginBottom: '10px',
+                    fontFamily: 'DM Sans, sans-serif'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: 600, fontFamily: 'DM Mono, monospace', fontSize: '13px', color: isSelected ? 'var(--snow)' : 'var(--snow2)' }}>
-                      #{order.order_number}
-                    </span>
-                    <span style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 600, background: 'var(--teal-dim)', padding: '2px 8px', borderRadius: '10px' }}>
-                      Picked
-                    </span>
+                  {printers.map((p, idx) => (
+                    <option key={idx} value={p}>{p}</option>
+                  ))}
+                </select>
+                <button 
+                  className="btn" 
+                  onClick={handlePrintTestLabel} 
+                  disabled={isPrinting}
+                  style={{ width: '100%', fontSize: '11px', padding: '5px', background: 'transparent', border: '1px dashed var(--line2)', color: 'var(--snow3)' }}
+                >
+                  🖨️ Print Test 4x6 Page
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Ready to Pack Orders list */}
+          <div style={{ padding: '20px 20px 10px 20px', borderBottom: '1px solid var(--line)' }}>
+            <form onSubmit={handleSearchOrder} style={{ display: 'flex', gap: '6px' }}>
+              <input 
+                type="text" 
+                placeholder="Search Order Number (e.g. 1027)..." 
+                value={searchOrderNumber}
+                onChange={(e) => setSearchOrderNumber(e.target.value)}
+                style={{ 
+                  flex: 1, padding: '7px 12px', borderRadius: '6px', background: 'var(--ink3)', 
+                  border: '1px solid var(--line)', color: 'var(--snow)', fontSize: '12px',
+                  fontFamily: 'DM Mono, monospace'
+                }}
+              />
+              <button type="submit" className="btn" style={{ padding: '7px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', fontSize: '12px' }}>🔍</button>
+            </form>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }}>
+            <div style={{ padding: '10px 20px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--snow3)', letterSpacing: '0.05em' }}>
+              Ready to Pack ({activeOrders.length})
+            </div>
+
+            {activeOrders.length === 0 ? (
+              <div style={{ padding: '30px 20px', color: 'var(--snow4)', textAlign: 'center', fontSize: '13px' }}>
+                No orders fully picked yet.<br />
+                Complete picking on mobile to load orders here.
+              </div>
+            ) : (
+              activeOrders.map((order) => {
+                const isSelected = selectedOrder?.order_id === order.order_id;
+                return (
+                  <div 
+                    key={order.order_id}
+                    onClick={() => handleSelectOrder(order)}
+                    style={{
+                      padding: '14px 20px',
+                      borderBottom: '1px solid var(--line)',
+                      cursor: 'pointer',
+                      background: isSelected ? 'var(--ink3)' : 'transparent',
+                      borderLeft: isSelected ? '3px solid var(--gold)' : '3px solid transparent',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 600, fontFamily: 'DM Mono, monospace', fontSize: '13px', color: isSelected ? 'var(--snow)' : 'var(--snow2)' }}>
+                        #{order.order_number}
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--teal)', fontWeight: 600, background: 'var(--teal-dim)', padding: '2px 8px', borderRadius: '10px' }}>
+                        Picked
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--snow3)' }}>
+                      {order.customer_name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--snow4)', marginTop: '2px', fontFamily: 'DM Mono, monospace' }}>
+                      {order.line_items.length} items
+                    </div>
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--snow3)' }}>
-                    {order.customer_name}
-                  </div>
-                  <div style={{ fontSize: '11px', color: 'var(--snow4)', marginTop: '2px', fontFamily: 'DM Mono, monospace' }}>
-                    {order.line_items.length} items
-                  </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* RIGHT WORKSPACE: Verification & Printer Trigger */}
-      <div className="pack-workspace" style={{ background: 'var(--ink)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        
-        {!selectedOrder ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--snow4)', padding: '40px' }}>
-            <span style={{ fontSize: '48px', marginBottom: '16px' }}>🏷️</span>
-            <h3 style={{ fontFamily: 'Syne, sans-serif', color: 'var(--snow2)', marginBottom: '8px' }}>Packing Station Audit</h3>
-            <p style={{ maxWidth: '400px', textAlign: 'center', fontSize: '13px' }}>
-              Select a picked order from the sidebar list, or scan an order barcode to verify contents and print the shipping label.
-            </p>
-            
-            {lastLabelUrl && (
-              <div style={{
-                marginTop: '24px',
-                padding: '20px',
-                background: 'var(--teal-dim)',
-                border: '1px solid var(--teal-line)',
-                borderRadius: 'var(--r)',
-                textAlign: 'center',
-                maxWidth: '400px',
-                animation: 'slideInUp 0.3s ease-out'
-              }}>
-                <span style={{ fontSize: '24px' }}>🎉</span>
-                <h4 style={{ color: 'var(--teal)', fontSize: '15px', fontWeight: 600, marginTop: '8px' }}>
-                  Order #{lastLabelOrder} Packed!
-                </h4>
-                <p style={{ color: 'var(--snow3)', fontSize: '12px', marginTop: '6px', marginBottom: '16px' }}>
-                  The simulated thermal shipping label PDF has been generated.
-                </p>
-                <a 
-                  href={lastLabelUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-primary"
-                  style={{ textDecoration: 'none', justifyContent: 'center', display: 'inline-flex' }}
-                >
-                  📥 Open / Download PDF Label
-                </a>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
-            {/* Header section */}
-            <div style={{ padding: '24px 30px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '20px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  Packing Order <span style={{ fontFamily: 'DM Mono, monospace', color: 'var(--gold)' }}>#{selectedOrder.order_number}</span>
-                </h2>
-                <p style={{ fontSize: '13px', color: 'var(--snow3)', marginTop: '4px' }}>
-                  Customer: <strong>{selectedOrder.customer_name}</strong> | ID: {selectedOrder.order_id}
-                </p>
-              </div>
-
-              {/* Reset/Cancel button */}
-              <button 
-                onClick={() => setSelectedOrder(null)} 
-                style={{ background: 'transparent', border: '1px solid var(--line)', borderRadius: '6px', padding: '6px 12px', color: 'var(--snow3)', fontSize: '12px', cursor: 'pointer' }}
-              >
-                Close Order
-              </button>
-            </div>
-
-            {/* Error logs or status bars */}
-            {(printError || printStatus) && (
-              <div style={{
-                background: printError ? 'var(--rose-dim)' : 'var(--teal-dim)',
-                borderBottom: printError ? '1px solid var(--rose-line)' : '1px solid var(--teal-line)',
-                padding: '10px 30px',
-                color: printError ? 'var(--rose)' : 'var(--teal)',
-                fontSize: '12px',
-                fontFamily: 'DM Mono, monospace'
-              }}>
-                {printError ? `⚠️ ${printError}` : `🖨️ ${printStatus}`}
-              </div>
-            )}
-
-            {/* Verification Barcode Scan Input Bar */}
-            <div style={{ padding: '20px 30px', background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
-              <form onSubmit={handleBarcodeSubmit} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--snow2)', whiteSpace: 'nowrap' }}>
-                  👉 SCAN ITEM:
-                </div>
-                <input 
-                  type="text" 
-                  ref={barcodeInputRef}
-                  value={barcodeInput}
-                  disabled={isOrderComplete}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  placeholder={isOrderComplete ? "Order fully audited" : "Scan item barcode or type SKU..."}
-                  style={{
-                    flex: 1,
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    background: 'var(--ink)',
-                    border: '1px solid var(--line2)',
-                    color: 'var(--snow)',
-                    fontSize: '14px',
-                    fontFamily: 'DM Mono, monospace',
-                    outline: 'none',
-                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
-                  }}
-                />
-                <button 
-                  type="submit" 
-                  disabled={isOrderComplete}
-                  style={{ 
-                    padding: '10px 20px', background: 'var(--gold)', border: 'none', borderRadius: '8px', 
-                    color: 'var(--ink)', fontWeight: 600, fontSize: '13px', cursor: 'pointer',
-                    boxShadow: '0 4px 12px var(--gold-dim)'
-                  }}
-                >
-                  Verify
-                </button>
-              </form>
-
-              {/* Validation alert banner */}
-              {auditMessage && (
-                <div style={{ 
-                  marginTop: '12px', padding: '10px 16px', borderRadius: '6px', 
-                  background: auditMessage.type === 'success' ? 'var(--teal-dim)' : 'var(--rose-dim)',
-                  border: auditMessage.type === 'success' ? '1px solid var(--teal-line)' : '1px solid var(--rose-line)',
-                  color: auditMessage.type === 'success' ? 'var(--teal)' : 'var(--rose)',
-                  fontSize: '13px',
-                  fontWeight: 500
+      {(!isMobile || mobileView === 'workspace') && (
+        <div className="pack-workspace" style={{ background: 'var(--ink)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, height: '100%' }}>
+          
+          {!selectedOrder ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--snow4)', padding: '40px' }}>
+              <span style={{ fontSize: '48px', marginBottom: '16px' }}>🏷️</span>
+              <h3 style={{ fontFamily: 'Syne, sans-serif', color: 'var(--snow2)', marginBottom: '8px' }}>Packing Station Audit</h3>
+              <p style={{ maxWidth: '400px', textAlign: 'center', fontSize: '13px' }}>
+                Select a picked order from the sidebar list, or scan an order barcode to verify contents and print the shipping label.
+              </p>
+              
+              {lastLabelUrl && (
+                <div style={{
+                  marginTop: '24px',
+                  padding: '20px',
+                  background: 'var(--teal-dim)',
+                  border: '1px solid var(--teal-line)',
+                  borderRadius: 'var(--r)',
+                  textAlign: 'center',
+                  maxWidth: '400px',
+                  animation: 'slideInUp 0.3s ease-out'
                 }}>
-                  {auditMessage.type === 'success' ? '✅' : '❌'} {auditMessage.text}
+                  <span style={{ fontSize: '24px' }}>🎉</span>
+                  <h4 style={{ color: 'var(--teal)', fontSize: '15px', fontWeight: 600, marginTop: '8px' }}>
+                    Order #{lastLabelOrder} Packed!
+                  </h4>
+                  <p style={{ color: 'var(--snow3)', fontSize: '12px', marginTop: '6px', marginBottom: '16px' }}>
+                    The simulated thermal shipping label PDF has been generated.
+                  </p>
+                  <a 
+                    href={lastLabelUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-primary"
+                    style={{ textDecoration: 'none', justifyContent: 'center', display: 'inline-flex' }}
+                  >
+                    📥 Open / Download PDF Label
+                  </a>
                 </div>
               )}
             </div>
-
-            {/* Line items audit grid */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--snow3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '14px' }}>
-                Packing Audit Items List
-              </div>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--line2)', color: 'var(--snow3)', fontSize: '12px' }}>
-                    <th style={{ paddingBottom: '10px', width: '80px' }}>Cubicle</th>
-                    <th style={{ paddingBottom: '10px' }}>Product</th>
-                    <th style={{ paddingBottom: '10px', width: '200px' }}>SKU / Barcode</th>
-                    <th style={{ paddingBottom: '10px', width: '120px', textAlign: 'center' }}>Audit Progress</th>
-                    <th style={{ paddingBottom: '10px', width: '120px', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedOrder.line_items.map((item: any, idx) => {
-                    const packed = item.packed_qty || 0;
-                    const complete = packed >= item.qty;
-                    
-                    return (
-                      <tr 
-                        key={idx} 
-                        style={{ 
-                          borderBottom: '1px solid var(--line)', 
-                          background: complete ? 'rgba(61, 217, 192, 0.02)' : 'transparent',
-                          transition: 'background 0.15s'
-                        }}
-                      >
-                        {/* Cubicle Badge */}
-                        <td style={{ padding: '16px 0' }}>
-                          <span style={{
-                            padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                            background: item.cubicle && item.cubicle !== 'Unknown' ? 'var(--gold-dim)' : 'var(--ink3)',
-                            border: item.cubicle && item.cubicle !== 'Unknown' ? '1px solid var(--gold-line)' : '1px solid var(--line)',
-                            color: item.cubicle && item.cubicle !== 'Unknown' ? 'var(--gold)' : 'var(--snow4)'
-                          }}>
-                            {item.cubicle || 'Unknown'}
-                          </span>
-                        </td>
-                        
-                        {/* Title */}
-                        <td style={{ padding: '16px 0', paddingRight: '20px' }}>
-                          <div style={{ fontWeight: 600, color: complete ? 'var(--snow3)' : 'var(--snow)', fontSize: '13px' }}>
-                            {item.title}
-                          </div>
-                        </td>
+              {/* Header section */}
+              <div style={{ padding: '24px 30px', borderBottom: '1px solid var(--line)', background: 'var(--ink2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '20px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    Packing Order <span style={{ fontFamily: 'DM Mono, monospace', color: 'var(--gold)' }}>#{selectedOrder.order_number}</span>
+                  </h2>
+                  <p style={{ fontSize: '13px', color: 'var(--snow3)', marginTop: '4px' }}>
+                    Customer: <strong>{selectedOrder.customer_name}</strong> | ID: {selectedOrder.order_id}
+                  </p>
+                </div>
 
-                        {/* SKU/Barcode */}
-                        <td style={{ padding: '16px 0', fontFamily: 'DM Mono, monospace', fontSize: '12px', color: 'var(--snow3)' }}>
-                          <div>SKU: {item.sku}</div>
-                          {item.barcode && <div style={{ fontSize: '11px', color: 'var(--snow4)', marginTop: '2px' }}>UPC: {item.barcode}</div>}
-                        </td>
+                {/* Reset/Cancel button */}
+                <button 
+                  onClick={() => { setSelectedOrder(null); setMobileView('list'); }} 
+                  style={{ background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: '6px', padding: '6px 12px', color: 'var(--snow3)', fontSize: '12px', cursor: 'pointer' }}
+                >
+                  {isMobile ? '← Back' : 'Close Order'}
+                </button>
+              </div>
 
-                        {/* Progress status */}
-                        <td style={{ padding: '16px 0', textAlign: 'center' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <div style={{ 
-                              fontSize: '14px', fontWeight: 700, 
-                              color: complete ? 'var(--teal)' : (packed > 0 ? 'var(--amber)' : 'var(--snow3)')
+              {/* Error logs or status bars */}
+              {(printError || printStatus) && (
+                <div style={{
+                  background: printError ? 'var(--rose-dim)' : 'var(--teal-dim)',
+                  borderBottom: printError ? '1px solid var(--rose-line)' : '1px solid var(--teal-line)',
+                  padding: '10px 30px',
+                  color: printError ? 'var(--rose)' : 'var(--teal)',
+                  fontSize: '12px',
+                  fontFamily: 'DM Mono, monospace'
+                }}>
+                  {printError ? `⚠️ ${printError}` : `🖨️ ${printStatus}`}
+                </div>
+              )}
+
+              {/* Verification Barcode Scan Input Bar */}
+              <div style={{ padding: '20px 30px', background: 'var(--ink2)', borderBottom: '1px solid var(--line)' }}>
+                <form onSubmit={handleBarcodeSubmit} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--snow2)', whiteSpace: 'nowrap' }}>
+                    👉 SCAN ITEM:
+                  </div>
+                  <input 
+                    type="text" 
+                    ref={barcodeInputRef}
+                    value={barcodeInput}
+                    disabled={isOrderComplete}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    placeholder={isOrderComplete ? "Order fully audited" : "Scan item barcode or type SKU..."}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      borderRadius: '8px',
+                      background: 'var(--ink)',
+                      border: '1px solid var(--line)',
+                      color: 'var(--snow)',
+                      fontSize: '14px',
+                      fontFamily: 'DM Mono, monospace',
+                      outline: 'none',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)'
+                    }}
+                  />
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={isOrderComplete || !barcodeInput.trim()}
+                    style={{ padding: '10px 20px', fontSize: '13px' }}
+                  >
+                    Verify Scan
+                  </button>
+                </form>
+
+                {/* Audit message log / status alert */}
+                {auditMessage && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px 16px',
+                    borderRadius: '6px',
+                    background: auditMessage.type === 'success' ? 'var(--teal-dim)' : 'var(--rose-dim)',
+                    border: auditMessage.type === 'success' ? '1px solid var(--teal-line)' : '1px solid var(--rose-line)',
+                    color: auditMessage.type === 'success' ? 'var(--teal)' : 'var(--rose)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    animation: 'slideInDown 0.15s ease-out'
+                  }}>
+                    {auditMessage.type === 'success' ? '✓' : '⚠️'} {auditMessage.text}
+                  </div>
+                )}
+              </div>
+
+              {/* Verified order items table */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px 30px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--snow3)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      <th style={{ paddingBottom: '10px', width: '90px' }}>Bin</th>
+                      <th style={{ paddingBottom: '10px' }}>Product</th>
+                      <th style={{ paddingBottom: '10px', width: '150px' }}>SKU/Barcode</th>
+                      <th style={{ paddingBottom: '10px', width: '100px', textAlign: 'center' }}>Verified</th>
+                      <th style={{ paddingBottom: '10px', width: '100px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedOrder.line_items.map((item: any) => {
+                      const packed = item.packed_qty || 0;
+                      const complete = packed >= item.qty;
+                      return (
+                        <tr 
+                          key={item.sku} 
+                          style={{ 
+                            borderBottom: '1px solid var(--line)', 
+                            background: complete ? 'rgba(61, 217, 192, 0.02)' : 'transparent',
+                            transition: 'background 0.15s'
+                          }}
+                        >
+                          {/* Cubicle Badge */}
+                          <td style={{ padding: '16px 0' }}>
+                            <span style={{
+                              padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                              background: item.cubicle && item.cubicle !== 'Unknown' ? 'var(--gold-dim)' : 'var(--ink3)',
+                              border: item.cubicle && item.cubicle !== 'Unknown' ? '1px solid var(--gold-line)' : '1px solid var(--line)',
+                              color: item.cubicle && item.cubicle !== 'Unknown' ? 'var(--gold)' : 'var(--snow4)'
                             }}>
-                              {packed} / {item.qty}
+                              {item.cubicle || 'Unknown'}
+                            </span>
+                          </td>
+                          
+                          {/* Title */}
+                          <td style={{ padding: '16px 0', paddingRight: '20px' }}>
+                            <div style={{ fontWeight: 600, color: complete ? 'var(--snow3)' : 'var(--snow)', fontSize: '13px' }}>
+                              {item.title}
                             </div>
-                            {complete && (
-                              <span style={{ fontSize: '10px', color: 'var(--teal)', fontWeight: 600, textTransform: 'uppercase', marginTop: '2px' }}>
-                                Verified
-                              </span>
+                          </td>
+
+                          {/* SKU/Barcode */}
+                          <td style={{ padding: '16px 0', fontFamily: 'DM Mono, monospace', fontSize: '12px', color: 'var(--snow3)' }}>
+                            <div>SKU: {item.sku}</div>
+                            {item.barcode && <div style={{ fontSize: '11px', color: 'var(--snow4)', marginTop: '2px' }}>UPC: {item.barcode}</div>}
+                          </td>
+
+                          {/* Progress status */}
+                          <td style={{ padding: '16px 0', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <div style={{ 
+                                fontSize: '14px', fontWeight: 700, 
+                                color: complete ? 'var(--teal)' : (packed > 0 ? 'var(--amber)' : 'var(--snow3)')
+                              }}>
+                                {packed} / {item.qty}
+                              </div>
+                              {complete && (
+                                <span style={{ fontSize: '10px', color: 'var(--teal)', fontWeight: 600, textTransform: 'uppercase', marginTop: '2px' }}>
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Manual override action */}
+                          <td style={{ padding: '16px 0', textAlign: 'right' }}>
+                            {!complete && (
+                              <button
+                                onClick={() => handleForceVerifyPack(item.sku)}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px dashed var(--line2)',
+                                  borderRadius: '4px',
+                                  padding: '4px 10px',
+                                  fontSize: '11px',
+                                  color: 'var(--snow3)',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--gold)'; e.currentTarget.style.borderColor = 'var(--gold-line)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--snow3)'; e.currentTarget.style.borderColor = 'var(--line2)'; }}
+                              >
+                                Bypass Scan
+                              </button>
                             )}
-                          </div>
-                        </td>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                        {/* Manual override action */}
-                        <td style={{ padding: '16px 0', textAlign: 'right' }}>
-                          {!complete && (
-                            <button
-                              onClick={() => handleForceVerifyPack(item.sku)}
-                              style={{
-                                background: 'transparent',
-                                border: '1px dashed var(--line2)',
-                                borderRadius: '4px',
-                                padding: '4px 10px',
-                                fontSize: '11px',
-                                color: 'var(--snow3)',
-                                cursor: 'pointer'
-                              }}
-                              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--gold)'; e.currentTarget.style.borderColor = 'var(--gold-line)'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--snow3)'; e.currentTarget.style.borderColor = 'var(--line2)'; }}
-                            >
-                              Bypass Scan
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
+          )}
 
-          </div>
-        )}
-
-      </div>
+        </div>
+      )}
     </div>
   );
 }
