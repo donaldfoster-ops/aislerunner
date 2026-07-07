@@ -385,6 +385,112 @@ export default function PackTab() {
     }
   };
 
+  // Handle camera scanned barcode
+  const handleCameraBarcodeScanned = (code: string) => {
+    if (!selectedOrder || isOrderComplete) return;
+    
+    const cleanCode = code.trim();
+    
+    // Find matching item
+    const matchIndex = selectedOrder.line_items.findIndex((item: any) => {
+      const expectedBarcode = item.barcode ? item.barcode.trim() : '';
+      const expectedSku = item.sku ? item.sku.trim() : '';
+      const hasPendingPack = (item.packed_qty || 0) < item.qty;
+      
+      const isCodeMatch = (expectedBarcode && cleanCode === expectedBarcode) || (cleanCode === expectedSku);
+      return isCodeMatch && hasPendingPack;
+    });
+
+    if (matchIndex !== -1) {
+      playSound('match');
+      
+      const updatedLineItems = selectedOrder.line_items.map((item: any, idx) => {
+        if (idx === matchIndex) {
+          return { ...item, packed_qty: (item.packed_qty || 0) + 1 };
+        }
+        return item;
+      });
+
+      const allPacked = updatedLineItems.every((item: any) => (item.packed_qty || 0) >= item.qty);
+      const updatedOrder = {
+        ...selectedOrder,
+        line_items: updatedLineItems
+      };
+
+      setSelectedOrder(updatedOrder);
+      setAuditMessage({ type: 'success', text: `Verified 1x "${updatedLineItems[matchIndex].title}"` });
+
+      if (allPacked) {
+        setIsOrderComplete(true);
+        setIsCameraOpen(false); // Close camera on order completion
+        triggerToast('success', `Order #${selectedOrder.order_number} fully audited! Printing...`);
+        autoPrintLabel(updatedOrder);
+      }
+    } else {
+      playSound('error');
+      
+      // Check if it exists at all
+      const exist = selectedOrder.line_items.find((item: any) => {
+        const expectedBarcode = item.barcode ? item.barcode.trim() : '';
+        const expectedSku = item.sku ? item.sku.trim() : '';
+        return (expectedBarcode && cleanCode === expectedBarcode) || (cleanCode === expectedSku);
+      });
+
+      if (exist) {
+        triggerToast('error', `Item already fully audited: "${exist.title}"`);
+      } else {
+        triggerToast('error', `Scanned code "${cleanCode}" does not match this order.`);
+      }
+    }
+  };
+
+  // Camera scanner mounting lifecycle hook
+  useEffect(() => {
+    if (isCameraOpen && selectedOrder && !isOrderComplete && typeof window !== 'undefined') {
+      let activeScanner: any = null;
+      setCameraError(null);
+      
+      const timer = setTimeout(() => {
+        import('html5-qrcode').then((module) => {
+          const scanner = new module.Html5Qrcode("pack-reader");
+          activeScanner = scanner;
+          
+          scanner.start(
+            { facingMode: "environment" },
+            { 
+              fps: 15, 
+              qrbox: (width: number, height: number) => {
+                const size = Math.min(width, height) * 0.7;
+                return { width: size, height: size * 0.5 };
+              }
+            },
+            (decodedText) => {
+              handleCameraBarcodeScanned(decodedText);
+            },
+            (errorMessage) => {
+              // Ignore scanning loop debug messages
+            }
+          ).catch((err) => {
+            console.error("Camera start failed:", err);
+            setCameraError(err.message || "Camera access denied.");
+          });
+        }).catch((err) => {
+          console.error("html5-qrcode loading failed:", err);
+          setCameraError("Failed to initialize scanner library.");
+        });
+      }, 200);
+      
+      return () => {
+        clearTimeout(timer);
+        if (activeScanner) {
+          try {
+            activeScanner.stop().catch((e: any) => console.warn("Error stopping camera:", e));
+          } catch (e) {}
+        }
+      };
+    }
+  }, [isCameraOpen, selectedOrder, isOrderComplete]);
+
   // Fetch mock label PDF base64 and print to selected printer via QZ Tray
   const autoPrintLabel = async (order: ActiveOrder) => {
     setIsPrinting(true);
@@ -790,19 +896,6 @@ export default function PackTab() {
                     }}
                   />
                   <button 
-                    type="submit" 
-                    className="btn btn-primary"
-                    disabled={isOrderComplete || !barcodeInput.trim()}
-                    style={{ 
-                      padding: isMobile ? '10px 12px' : '10px 20px', 
-                      fontSize: '13px',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0
-                    }}
-                  >
-                    {isMobile ? 'Verify' : 'Verify Scan'}
-                  </button>
-                  <button 
                     type="button" 
                     onClick={() => setIsCameraOpen(true)}
                     className="btn"
@@ -821,6 +914,19 @@ export default function PackTab() {
                     title="Scan Barcode via Camera"
                   >
                     📷
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={isOrderComplete || !barcodeInput.trim()}
+                    style={{ 
+                      padding: isMobile ? '10px 12px' : '10px 20px', 
+                      fontSize: '13px',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0
+                    }}
+                  >
+                    {isMobile ? 'Verify' : 'Verify Scan'}
                   </button>
                 </form>
 
@@ -1016,6 +1122,7 @@ export default function PackTab() {
               id="pack-reader" 
               style={{ 
                 width: '100%', 
+                minHeight: '260px',
                 overflow: 'hidden', 
                 borderRadius: '12px', 
                 border: '1px solid var(--line)',
