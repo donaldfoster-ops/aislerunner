@@ -302,3 +302,16 @@ export async function searchCatalogItem(query: string): Promise<CatalogItem | nu
   });
 }
 
+export async function getFullCatalog(): Promise<CatalogItem[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('catalog_map', 'readonly');
+    const store = transaction.objectStore('catalog_map');
+    const request = store.getAll();
+    
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+

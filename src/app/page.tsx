@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 
 const PickTab = dynamic(() => import('@/components/pick/PickTab'), { ssr: false });
 const PackTab = dynamic(() => import('@/components/pack/PackTab'), { ssr: false });
+const ReportsTab = dynamic(() => import('@/components/reports/ReportsTab'), { ssr: false });
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('pick');
@@ -92,6 +93,11 @@ export default function Home() {
               <span className="tab-icon">🏷️</span> Pack & Print
             </button>
           )}
+          {(deviceProfile === 'all' || deviceProfile === 'desktop-packer') && (
+            <button className={`nav-tab ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+              <span className="tab-icon">📊</span> Reports & Audits
+            </button>
+          )}
         </nav>
 
         <div className="header-right">
@@ -153,6 +159,9 @@ export default function Home() {
         </div>
         <div className={`panel ${activeTab === 'pack' ? 'active' : ''}`}>
           {activeTab === 'pack' && <PackTab />}
+        </div>
+        <div className={`panel ${activeTab === 'reports' ? 'active' : ''}`}>
+          {activeTab === 'reports' && <ReportsTab />}
         </div>
       </main>
     </>
