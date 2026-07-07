@@ -6,6 +6,7 @@ export default function ReportsTab() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'instock' | 'low' | 'out'>('all');
   const [reportType, setReportType] = useState<'cubicles' | 'low_stock' | 'master'>('cubicles');
   const [syncStatus, setSyncStatus] = useState('');
 
@@ -42,10 +43,10 @@ export default function ReportsTab() {
     }
   };
 
-  // Group items by cubicle location
+  // Group filtered items by cubicle location
   const getCubicleMap = () => {
     const map: Record<string, CatalogItem[]> = {};
-    catalog.forEach((item) => {
+    filteredCatalog.forEach((item) => {
       const loc = (item.cubicle || '').trim();
       const displayLoc = loc === '' || loc.toLowerCase() === 'unknown' ? 'Unallocated (No Location)' : loc;
       if (!map[displayLoc]) {
@@ -67,15 +68,22 @@ export default function ReportsTab() {
       }, {} as Record<string, CatalogItem[]>);
   };
 
-  // Filter logic based on search query
+  // Filter logic based on search query and stock levels
   const filteredCatalog = catalog.filter((item) => {
     const q = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       (item.title || '').toLowerCase().includes(q) ||
       (item.sku || '').toLowerCase().includes(q) ||
       (item.barcode || '').toLowerCase().includes(q) ||
       (item.cubicle || '').toLowerCase().includes(q)
     );
+    if (!matchesSearch) return false;
+
+    const qty = item.inventory_quantity ?? 0;
+    if (stockFilter === 'instock') return qty > 0;
+    if (stockFilter === 'low') return qty > 0 && qty <= 5;
+    if (stockFilter === 'out') return qty === 0;
+    return true; // 'all'
   });
 
   const cubicleData = getCubicleMap();
@@ -97,7 +105,7 @@ export default function ReportsTab() {
     } else if (reportType === 'low_stock') {
       filename = 'low_stock_report.csv';
       csvContent = 'Product Title,SKU,Barcode,Location,Stock Quantity\n';
-      catalog
+      filteredCatalog
         .filter((item) => (item.inventory_quantity ?? 0) <= 5)
         .forEach((item) => {
           const safeTitle = `"${(item.title || '').replace(/"/g, '""')}"`;
@@ -106,7 +114,7 @@ export default function ReportsTab() {
     } else {
       filename = 'master_catalog_report.csv';
       csvContent = 'Product Title,SKU,Barcode,Location,Stock Quantity,Brand\n';
-      catalog.forEach((item) => {
+      filteredCatalog.forEach((item) => {
         const safeTitle = `"${(item.title || '').replace(/"/g, '""')}"`;
         csvContent += `${safeTitle},"${item.sku || ''}","${item.barcode || ''}","${item.cubicle || 'None'}",${item.inventory_quantity ?? 0},"${item.vendor || ''}"\n`;
       });
@@ -232,23 +240,44 @@ export default function ReportsTab() {
           </button>
         </div>
 
-        <input 
-          type="text"
-          placeholder="Filter report by Title, SKU, Barcode, or Location..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            width: '100%',
-            maxWidth: '360px',
-            padding: '8px 14px',
-            background: 'var(--ink2)',
-            border: '1px solid var(--line)',
-            borderRadius: '6px',
-            color: 'var(--snow)',
-            fontSize: '12px',
-            outline: 'none'
-          }}
-        />
+        <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '560px', flexWrap: 'nowrap' }}>
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value as any)}
+            style={{
+              padding: '8px 12px',
+              background: 'var(--ink2)',
+              border: '1px solid var(--line)',
+              borderRadius: '6px',
+              color: 'var(--snow2)',
+              fontSize: '12px',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="all">📦 All Stock Levels</option>
+            <option value="instock">🟢 In Stock Only (&gt; 0)</option>
+            <option value="low">🟡 Low Stock Only (1-5)</option>
+            <option value="out">🔴 Out of Stock Only (0)</option>
+          </select>
+
+          <input 
+            type="text"
+            placeholder="Filter report by Title, SKU, Barcode, or Location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              flex: 1,
+              padding: '8px 14px',
+              background: 'var(--ink2)',
+              border: '1px solid var(--line)',
+              borderRadius: '6px',
+              color: 'var(--snow)',
+              fontSize: '12px',
+              outline: 'none'
+            }}
+          />
+        </div>
       </div>
 
       {/* REPORT CONTENT WRAPPER */}
@@ -270,17 +299,7 @@ export default function ReportsTab() {
             {reportType === 'cubicles' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {Object.entries(cubicleData).map(([location, items]) => {
-                  // Filter items inside this location based on query
-                  const filteredItems = items.filter(item => {
-                    const q = searchTerm.toLowerCase();
-                    return (
-                      (item.title || '').toLowerCase().includes(q) ||
-                      (item.sku || '').toLowerCase().includes(q) ||
-                      (item.barcode || '').toLowerCase().includes(q)
-                    );
-                  });
-
-                  if (filteredItems.length === 0 && searchTerm) return null;
+                  if (items.length === 0) return null;
 
                   return (
                     <div 
@@ -304,7 +323,7 @@ export default function ReportsTab() {
                           📍 Cubicle: {location}
                         </span>
                         <span style={{ fontSize: '11px', color: 'var(--snow3)', background: 'var(--ink)', padding: '2px 8px', borderRadius: '10px' }}>
-                          {filteredItems.length} {filteredItems.length === 1 ? 'variant' : 'variants'}
+                          {items.length} {items.length === 1 ? 'variant' : 'variants'}
                         </span>
                       </div>
                       
@@ -320,7 +339,7 @@ export default function ReportsTab() {
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredItems.map((item) => (
+                            {items.map((item) => (
                               <tr key={item.sku} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', fontSize: '12.5px', color: 'var(--snow2)' }}>
                                 <td style={{ padding: '8px 0' }}>
                                   {item.image_url ? (
