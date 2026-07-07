@@ -140,9 +140,9 @@ export default function PackTab() {
     setQzStatus('Connecting...');
 
     try {
-      // Connect to localhost:8182
+      // Connect using automatic port & protocol detection (WSS 8181 / WS 8182)
       if (!qz.websocket.isActive()) {
-        await qz.websocket.connect({ host: 'localhost', port: 8182 });
+        await qz.websocket.connect();
       }
       setQzConnected(true);
       setQzStatus('Connected');
