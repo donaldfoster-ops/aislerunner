@@ -8,6 +8,7 @@ const PackTab = dynamic(() => import('@/components/pack/PackTab'), { ssr: false 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('pick');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [deviceProfile, setDeviceProfile] = useState<'mobile-picker' | 'desktop-packer' | 'all'>('all');
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -27,6 +28,23 @@ export default function Home() {
         setTheme('dark');
         document.documentElement.classList.remove('light-theme');
       }
+
+      // Initialize device profile
+      const isMobileDevice = window.innerWidth <= 768;
+      const savedProfile = localStorage.getItem('ar-device-profile') as 'mobile-picker' | 'desktop-packer' | 'all';
+      if (savedProfile) {
+        setDeviceProfile(savedProfile);
+        if (savedProfile === 'mobile-picker') {
+          setActiveTab('pick');
+        } else if (savedProfile === 'desktop-packer') {
+          setActiveTab('pack');
+        }
+      } else {
+        const initialProfile = isMobileDevice ? 'mobile-picker' : 'desktop-packer';
+        setDeviceProfile(initialProfile);
+        setActiveTab(isMobileDevice ? 'pick' : 'pack');
+        localStorage.setItem('ar-device-profile', initialProfile);
+      }
     }
   }, []);
 
@@ -42,6 +60,16 @@ export default function Home() {
     }
   };
 
+  const handleProfileChange = (profile: 'mobile-picker' | 'desktop-packer' | 'all') => {
+    setDeviceProfile(profile);
+    localStorage.setItem('ar-device-profile', profile);
+    if (profile === 'mobile-picker') {
+      setActiveTab('pick');
+    } else if (profile === 'desktop-packer') {
+      setActiveTab('pack');
+    }
+  };
+
   return (
     <>
       <header className="header">
@@ -54,15 +82,42 @@ export default function Home() {
         </div>
 
         <nav className="nav-tabs">
-          <button className={`nav-tab ${activeTab === 'pick' ? 'active' : ''}`} onClick={() => setActiveTab('pick')}>
-            <span className="tab-icon">📦</span> Pick Orders
-          </button>
-          <button className={`nav-tab ${activeTab === 'pack' ? 'active' : ''}`} onClick={() => setActiveTab('pack')}>
-            <span className="tab-icon">🏷️</span> Pack & Print
-          </button>
+          {(deviceProfile === 'all' || deviceProfile === 'mobile-picker') && (
+            <button className={`nav-tab ${activeTab === 'pick' ? 'active' : ''}`} onClick={() => setActiveTab('pick')}>
+              <span className="tab-icon">📦</span> Pick Orders
+            </button>
+          )}
+          {(deviceProfile === 'all' || deviceProfile === 'desktop-packer') && (
+            <button className={`nav-tab ${activeTab === 'pack' ? 'active' : ''}`} onClick={() => setActiveTab('pack')}>
+              <span className="tab-icon">🏷️</span> Pack & Print
+            </button>
+          )}
         </nav>
 
         <div className="header-right">
+          {/* Device Profile Selector */}
+          <select 
+            value={deviceProfile} 
+            onChange={(e) => handleProfileChange(e.target.value as any)}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 'var(--rs)',
+              border: '1px solid var(--line2)',
+              background: 'var(--ink3)',
+              color: 'var(--snow2)',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              outline: 'none',
+              transition: 'all 0.15s'
+            }}
+          >
+            <option value="all">🌐 Display All Tabs</option>
+            <option value="mobile-picker">📦 Mobile Picker Mode</option>
+            <option value="desktop-packer">🏷️ Desktop Packer Mode</option>
+          </select>
+
           <button 
             onClick={toggleTheme}
             style={{
@@ -82,7 +137,7 @@ export default function Home() {
             }}
             title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
-            {theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+            {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
           </button>
 
           <div className="store-status">
