@@ -670,50 +670,52 @@ export default function PackTab() {
           )}
 
           {/* QZ Tray Connection Config */}
-          <div style={{ padding: '20px', borderBottom: '1px solid var(--line)', background: 'rgba(0,0,0,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--snow3)' }}>Printer Connection</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ 
-                  width: '8px', height: '8px', borderRadius: '50%', 
-                  background: qzConnected ? 'var(--teal)' : 'var(--rose)',
-                  boxShadow: qzConnected ? '0 0 8px var(--teal)' : 'none'
-                }}></span>
-                <span style={{ fontSize: '11px', fontWeight: 500, color: qzConnected ? 'var(--teal)' : 'var(--rose)' }}>{qzStatus}</span>
+          {!isMobile && (
+            <div style={{ padding: '20px', borderBottom: '1px solid var(--line)', background: 'rgba(0,0,0,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--snow3)' }}>Printer Connection</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ 
+                    width: '8px', height: '8px', borderRadius: '50%', 
+                    background: qzConnected ? 'var(--teal)' : 'var(--rose)',
+                    boxShadow: qzConnected ? '0 0 8px var(--teal)' : 'none'
+                  }}></span>
+                  <span style={{ fontSize: '11px', fontWeight: 500, color: qzConnected ? 'var(--teal)' : 'var(--rose)' }}>{qzStatus}</span>
+                </div>
               </div>
-            </div>
 
-            {!qzConnected ? (
-              <button className="btn" onClick={initQzConnection} style={{ width: '100%', fontSize: '12px', padding: '6px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', color: 'var(--snow)' }}>
-                🔄 Reconnect QZ Tray
-              </button>
-            ) : (
-              <div>
-                <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '4px' }}>Target Label Printer</label>
-                <select 
-                  value={selectedPrinter} 
-                  onChange={handlePrinterChange}
-                  style={{ 
-                    width: '100%', padding: '7px', background: 'var(--ink3)', border: '1px solid var(--line)', 
-                    borderRadius: '6px', color: 'var(--snow2)', fontSize: '12px', marginBottom: '10px',
-                    fontFamily: 'DM Sans, sans-serif'
-                  }}
-                >
-                  {printers.map((p, idx) => (
-                    <option key={idx} value={p}>{p}</option>
-                  ))}
-                </select>
-                <button 
-                  className="btn" 
-                  onClick={handlePrintTestLabel} 
-                  disabled={isPrinting}
-                  style={{ width: '100%', fontSize: '11px', padding: '5px', background: 'transparent', border: '1px dashed var(--line2)', color: 'var(--snow3)' }}
-                >
-                  🖨️ Print Test 4x6 Page
+              {!qzConnected ? (
+                <button className="btn" onClick={initQzConnection} style={{ width: '100%', fontSize: '12px', padding: '6px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', color: 'var(--snow)' }}>
+                  🔄 Reconnect QZ Tray
                 </button>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div>
+                  <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '4px' }}>Target Label Printer</label>
+                  <select 
+                    value={selectedPrinter} 
+                    onChange={handlePrinterChange}
+                    style={{ 
+                      width: '100%', padding: '7px', background: 'var(--ink3)', border: '1px solid var(--line)', 
+                      borderRadius: '6px', color: 'var(--snow2)', fontSize: '12px', marginBottom: '10px',
+                      fontFamily: 'DM Sans, sans-serif'
+                    }}
+                  >
+                    {printers.map((p, idx) => (
+                      <option key={idx} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <button 
+                    className="btn" 
+                    onClick={handlePrintTestLabel} 
+                    disabled={isPrinting}
+                    style={{ width: '100%', fontSize: '11px', padding: '5px', background: 'transparent', border: '1px dashed var(--line2)', color: 'var(--snow3)' }}
+                  >
+                    🖨️ Print Test 4x6 Page
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Ready to Pack Orders list */}
           <div style={{ padding: '20px 20px 10px 20px', borderBottom: '1px solid var(--line)' }}>
