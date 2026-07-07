@@ -3359,7 +3359,10 @@ export default function PickTab() {
                       {/* Submit button */}
                       <button
                         onClick={handleIntakeSubmit}
-                        disabled={intakeLoading || !intakeQty.trim()}
+                        disabled={
+                          intakeLoading || 
+                          (!intakeQty.trim() && intakeLocation.trim() === (lookupResult.cubicle || '').trim())
+                        }
                         className="btn btn-primary"
                         style={{
                           width: '100%',
