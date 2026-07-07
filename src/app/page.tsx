@@ -13,7 +13,7 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       // Register Service Worker for offline capabilities
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('/service-worker.js')
           .then((reg) => console.log('ServiceWorker registered with scope:', reg.scope))
           .catch((err) => console.error('ServiceWorker registration failed:', err));
       }
