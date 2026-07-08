@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { getFullCatalog, CatalogItem } from '@/lib/pick-storage';
+import { getFullCatalog, saveCatalog, CatalogItem } from '@/lib/pick-storage';
 
 export default function ReportsTab() {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -30,9 +30,12 @@ export default function ReportsTab() {
   const triggerCatalogSync = async () => {
     setSyncStatus('Syncing catalog from server...');
     try {
-      const res = await fetch('/api/shopify?action=getCatalog');
+      const res = await fetch('/api/shopify?action=syncCatalog');
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+
+      // Save to local IndexedDB storage
+      await saveCatalog(data);
 
       // Re-load from local IndexedDB storage
       await loadData();
@@ -143,11 +146,11 @@ export default function ReportsTab() {
   };
 
   // Math summary statistics
-  const totalUniqueSKUs = catalog.length;
+  const totalUniqueSKUs = filteredCatalog.length;
   const totalLocations = Object.keys(cubicleData).filter(loc => !loc.includes('Unallocated')).length;
-  const totalStockUnits = catalog.reduce((sum, item) => sum + (item.inventory_quantity ?? 0), 0);
-  const totalLowStock = catalog.filter((item) => (item.inventory_quantity ?? 0) <= 5 && (item.inventory_quantity ?? 0) > 0).length;
-  const totalOutOfStock = catalog.filter((item) => (item.inventory_quantity ?? 0) === 0).length;
+  const totalStockUnits = filteredCatalog.reduce((sum, item) => sum + (item.inventory_quantity ?? 0), 0);
+  const totalLowStock = filteredCatalog.filter((item) => (item.inventory_quantity ?? 0) <= 5 && (item.inventory_quantity ?? 0) > 0).length;
+  const totalOutOfStock = filteredCatalog.filter((item) => (item.inventory_quantity ?? 0) === 0).length;
 
   return (
     <div className="reports-layout" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', padding: '24px 30px', background: 'var(--ink)' }}>
