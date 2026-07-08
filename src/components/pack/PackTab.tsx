@@ -253,7 +253,8 @@ export default function PackTab() {
     } catch (err: any) {
       console.error('QZ connection failed:', err);
       setQzConnected(false);
-      setQzStatus('Connection Failed. Ensure QZ Tray is running.');
+      const errMsg = err.message || (typeof err === 'string' ? err : 'Check QZ Tray');
+      setQzStatus(`Connection Failed: ${errMsg}`);
     }
   };
 
