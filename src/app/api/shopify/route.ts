@@ -454,8 +454,72 @@ export async function GET(req: Request) {
       const orderNumber = searchParams.get('order_number') || '1000';
       const cleanOrderNumber = orderNumber.startsWith('#') ? orderNumber : `#${orderNumber}`;
       
-      // Dynamic Helvetica PDF stream to display custom order info on thermal printer
-      const pdfContent = `BT
+      let base64Pdf = '';
+      let isMock = true;
+
+      try {
+        // Attempt to fetch actual shipping label from Shopify GraphQL API
+        const query = `
+          query getOrderFulfillmentLabels($queryStr: String!) {
+            orders(first: 1, query: $queryStr) {
+              nodes {
+                id
+                name
+                fulfillments {
+                  id
+                  status
+                  shippingLabel {
+                    id
+                    shippingDocuments(format: PDF) {
+                      url
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `;
+
+        const res = await fetch(`https://${STORE_URL}/admin/api/${API_VERSION}/graphql.json`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': SHOPIFY_TOKEN,
+          },
+          body: JSON.stringify({ query, variables: { queryStr: `name:${cleanOrderNumber}` } }),
+        });
+
+        const data = await res.json();
+        const orderNode = data?.data?.orders?.nodes?.[0];
+        const fulfillments = orderNode?.fulfillments || [];
+        
+        let labelUrl = '';
+        for (const f of fulfillments) {
+          const docs = f.shippingLabel?.shippingDocuments || [];
+          if (docs.length > 0 && docs[0].url) {
+            labelUrl = docs[0].url;
+            break;
+          }
+        }
+
+        if (labelUrl) {
+          const pdfRes = await fetch(labelUrl);
+          if (pdfRes.ok) {
+            const arrayBuffer = await pdfRes.arrayBuffer();
+            base64Pdf = Buffer.from(arrayBuffer).toString('base64');
+            isMock = false;
+          } else {
+            console.warn(`Failed to fetch PDF data from labelUrl: ${labelUrl}, status: ${pdfRes.status}`);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to query/fetch Shopify shipping label:", e);
+      }
+
+      // If no real label PDF was retrieved, fall back to generating the mock PDF template
+      if (!base64Pdf) {
+        // Dynamic Helvetica PDF stream to display custom order info on thermal printer
+        const pdfContent = `BT
   /F1 18 Tf
   20 390 Td
   (MOCK SHIPPING LABEL) Tj
@@ -475,9 +539,9 @@ export async function GET(req: Request) {
   (Thank you for using Mazonkiki WMS!) Tj
 ET`;
 
-      const pdfLength = pdfContent.length;
-      
-      const pdfTemplate = `%PDF-1.4
+        const pdfLength = pdfContent.length;
+        
+        const pdfTemplate = `%PDF-1.4
 1 0 obj
   << /Type /Catalog /Pages 2 0 R >>
 endobj
@@ -510,7 +574,9 @@ startxref
 ${318 + 15 + pdfLength + 10}
 %%EOF`;
 
-      const base64Pdf = Buffer.from(pdfTemplate, 'binary').toString('base64');
+        base64Pdf = Buffer.from(pdfTemplate, 'binary').toString('base64');
+        isMock = true;
+      }
       
       const shouldPushQueue = searchParams.get('push_queue') === 'true';
       if (shouldPushQueue) {
@@ -538,7 +604,8 @@ ${318 + 15 + pdfLength + 10}
       return NextResponse.json({
         success: true,
         order_number: cleanOrderNumber,
-        pdf: base64Pdf
+        pdf: base64Pdf,
+        isMock
       });
     }
 

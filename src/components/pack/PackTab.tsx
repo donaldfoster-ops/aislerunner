@@ -8,68 +8,57 @@ import {
   deleteActiveOrder
 } from '@/lib/pick-storage';
 
-// Safe dynamic browser-only import for QZ Tray
-let qz: any;
-if (typeof window !== 'undefined') {
-  qz = require('qz-tray');
+// Browser-native PDF print helper using hidden iframe
+const printPdfNative = (pdfBase64: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    try {
+      const byteCharacters = atob(pdfBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
 
-  // Configure QZ Tray connection security to enable "Remember this decision"
-  qz.security.setCertificatePromise((resolve: any) => {
-    resolve("-----BEGIN CERTIFICATE-----\n" +
-            "MIIDJTCCAg2gAwIBAgIUQNfwwCps6uedmLDGL9FdcDMdcUkwDQYJKoZIhvcNAQEL\n" +
-            "BQAwIjEgMB4GA1UEAwwXQWlzbGVSdW5uZXIgTG9jYWwgVHJ1c3QwHhcNMjYwNzA4\n" +
-            "MDMyOTQxWhcNMzYwNzA1MDMyOTQxWjAiMSAwHgYDVQQDDBdBaXNsZVJ1bm5lciBM\n" +
-            "b2NhbCBUcnVzdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANbL9SLH\n" +
-            "i1+obKjdV7/e+CtWaTot5lt+t8hFBrH6qy91lyqeKIfVtloCAR3zCGSmXRAbn4CI\n" +
-            "2sh1HIF1gfmIeRup7c17yXcZRQHgmTYmgTd15cEHMpWghqcViqBpkFztpjdyWknk\n" +
-            "lexc2DMBbqoammrW/hEbmtqrC+3Qguelm4d0ZK5hQIr6grwejKG/WPXOdg+gzd4o\n" +
-            "h+OOlwgJidco7knvq9hQFVOIg0T6v1gI2QuG2Khri5gLUvsDEv5ogcwKQM81Q3XI\n" +
-            "w30NPo9qjZONQGjRVkPB6j8Lzy1eUj8m3HgQPRhb4GNSou1wZy2pzrIl6OZrq2qZ\n" +
-            "YtNaIqYX8PCmV9kCAwEAAaNTMFEwHQYDVR0OBBYEFJbpwxrUV2HrPMqXKTc3cOK6\n" +
-            "sbVfMB8GA1UdIwQYMBaAFJbpwxrUV2HrPMqXKTc3cOK6sbVfMA8GA1UdEwEB/wQF\n" +
-            "MAMBAf8wDQYJKoZIhvcNAQELBQADggEBADaYHdEhqmy/KMLotIx07przPLdEPGjB\n" +
-            "pdH6DEM+edtrQdQYQmcJsDSbbnoRHa1p1a21FznyyLn/ss8XiuNYJkyPIql44RLw\n" +
-            "QX/PRhp6xehOfUMf8wkTCi8nHBkk2ojAqGVt9SNyUpffQUxGEi5lUlrZLMgWzpmy\n" +
-            "iZnzx1g0z1AGttNv4RZSEGgoscqjIj2gg70AK9ASA5Pnn9n8jQ8HhCqKK2e+MF5p\n" +
-            "odh9OzMG13I514C1wbk2eVSgOheIpgVpY9hyd8LvXlWo3pxvzhFbj+KqIPRItMWM\n" +
-            "rstqtNxv36Ehy30HBMxmDUAT9+8lfhZKMw9oc2s4zXLGJr0GZwVYCDA=\n" +
-            "-----END CERTIFICATE-----\n");
-  });
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
 
-  qz.security.setSignatureAlgorithm("SHA512");
-  qz.security.setSignaturePromise((toSign: string) => {
-    return (resolve: any, reject: any) => {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      fetch(`${origin}/api/qz-sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request: toSign })
-      })
-      .then(async (res) => {
-        if (res.ok) {
-          resolve(await res.text());
-        } else {
-          const txt = await res.text();
-          lastSignatureError = `HTTP ${res.status}: ${txt}`;
-          reject(txt);
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          resolve();
+        } catch (e: any) {
+          reject(e);
+        } finally {
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(blobUrl);
+          }, 2000);
         }
-      })
-      .catch(err => {
-        lastSignatureError = err.message || err.toString();
-        reject(err);
-      });
-    };
+      };
+      
+      iframe.onerror = () => {
+        reject(new Error("Iframe print loading failed"));
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(blobUrl);
+      };
+    } catch (err) {
+      reject(err);
+    }
   });
-}
-
-let lastSignatureError = '';
+};
 
 export default function PackTab() {
-  // QZ Connection state
-  const [qzConnected, setQzConnected] = useState<boolean>(false);
-  const [qzStatus, setQzStatus] = useState<string>('Disconnected');
-  const [printers, setPrinters] = useState<string[]>([]);
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  // Print status
   const [printError, setPrintError] = useState<string>('');
   const [printStatus, setPrintStatus] = useState<string>('');
 
@@ -109,7 +98,6 @@ export default function PackTab() {
   // Initialize and load orders
   useEffect(() => {
     loadLocalOrders();
-    initQzConnection();
 
     // Auto-focus barcode scanner input
     const timer = setInterval(() => {
@@ -120,7 +108,6 @@ export default function PackTab() {
 
     return () => {
       clearInterval(timer);
-      disconnectQz();
     };
   }, [selectedOrder, isOrderComplete]);
 
@@ -132,110 +119,8 @@ export default function PackTab() {
     }
   }, [toast]);
 
-  // Background print queue polling for desktop connected stations
-  useEffect(() => {
-    if (!qzConnected || !selectedPrinter) return;
-
-    let pollingInterval: any = null;
-
-    const checkQueue = async () => {
-      try {
-        const res = await fetch('/api/shopify?action=pollPrintJobs');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.jobs && data.jobs.length > 0) {
-          for (const job of data.jobs) {
-            console.log(`Printing remote job for #${job.order_number}...`);
-            triggerToast('success', `Printing remote label for #${job.order_number}...`);
-            
-            const config = qz.configs.create(selectedPrinter);
-            const printData = [{
-              type: 'pixel',
-              format: 'pdf',
-              flavor: 'base64',
-              data: job.pdf
-            }];
-
-            await qz.print(config, printData);
-          }
-          
-          // Clear completed jobs
-          const completedIds = data.jobs.map((j: any) => j.id);
-          await fetch('/api/shopify?action=completePrintJobs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: completedIds })
-          });
-        }
-      } catch (err) {
-        console.error('Remote print queue check failed:', err);
-      }
-    };
-
-    // Run every 4 seconds
-    pollingInterval = setInterval(checkQueue, 4000);
-
-    return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-    };
-  }, [qzConnected, selectedPrinter]);
-
   const triggerToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
-  };
-
-  // Connect to QZ Tray
-  const initQzConnection = async () => {
-    if (typeof window === 'undefined' || !qz) return;
-    setQzStatus('Connecting...');
-
-    try {
-      // Connect using automatic port & protocol detection (WSS 8181 / WS 8182)
-      if (!qz.websocket.isActive()) {
-        await qz.websocket.connect();
-      }
-      setQzConnected(true);
-      setQzStatus('Connected');
-      
-      // Load saved printer configuration
-      const savedPrinter = localStorage.getItem('selected_printer') || '';
-      
-      // Find all printers
-      const printerList = await qz.printers.find();
-      const safeList = Array.isArray(printerList) ? printerList : [];
-      setPrinters(safeList);
-      
-      if (savedPrinter && safeList.includes(savedPrinter)) {
-        setSelectedPrinter(savedPrinter);
-      } else if (safeList.length > 0) {
-        // Fallback to first zebra or raw thermal printer if present
-        const defaultTher = safeList.find((p: string) => 
-          p.toLowerCase().includes('zebra') || 
-          p.toLowerCase().includes('thermal') || 
-          p.toLowerCase().includes('dymo') ||
-          p.toLowerCase().includes('rollo')
-        );
-        setSelectedPrinter(defaultTher || safeList[0]);
-      }
-    } catch (err: any) {
-      console.error('QZ connection failed:', err);
-      setQzConnected(false);
-      let errMsg = err.message || (typeof err === 'string' ? err : 'Check QZ Tray');
-      if (errMsg.includes('sign request') && lastSignatureError) {
-        errMsg = `${errMsg} (${lastSignatureError})`;
-      }
-      setQzStatus(`Connection Failed: ${errMsg}`);
-    }
-  };
-
-  const disconnectQz = async () => {
-    if (qz && qz.websocket.isActive()) {
-      try {
-        await qz.websocket.disconnect();
-      } catch (err) {
-        console.error(err);
-      }
-    }
   };
 
   // Load orders from local IndexedDB (only fully picked ones)
@@ -254,12 +139,7 @@ export default function PackTab() {
     }
   };
 
-  // Save selected printer choice
-  const handlePrinterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setSelectedPrinter(val);
-    localStorage.setItem('selected_printer', val);
-  };
+
 
   // Audio indicator for scanning validation
   const playSound = (type: 'match' | 'error') => {
@@ -545,7 +425,7 @@ export default function PackTab() {
     }
   }, [isCameraOpen, selectedOrder, isOrderComplete]);
 
-  // Fetch mock label PDF base64 and print to selected printer via QZ Tray
+  // Fetch mock/real label PDF base64 and trigger browser print dialog
   const autoPrintLabel = async (order: ActiveOrder) => {
     setIsPrinting(true);
     setPrintError('');
@@ -573,39 +453,10 @@ export default function PackTab() {
       setLastLabelUrl(blobUrl);
       setLastLabelOrder(order.order_number);
 
-      if (!qzConnected || !selectedPrinter) {
-        // Direct print unavailable, complete order and prompt mobile user to view PDF!
-        triggerToast('success', `Order #${order.order_number} packed successfully! PDF Label generated.`);
-        
-        try {
-          window.open(blobUrl, '_blank');
-        } catch (e) {}
+      setPrintStatus('Opening browser print preview...');
+      await printPdfNative(data.pdf);
 
-        // Archive/delete order locally since it has been fulfilled
-        await deleteActiveOrder(order.order_id);
-        await loadLocalOrders();
-        setSelectedOrder(null);
-        setIsOrderComplete(false);
-        return;
-      }
-
-      setPrintStatus(`Sending print job to ${selectedPrinter}...`);
-
-      // QZ Config
-      const config = qz.configs.create(selectedPrinter);
-      
-      // QZ Payload (pixel PDF printed raw to thermal layout)
-      const printData = [{
-        type: 'pixel',
-        format: 'pdf',
-        flavor: 'base64',
-        data: data.pdf
-      }];
-
-      // Send to local QZ Tray websocket
-      await qz.print(config, printData);
-      
-      triggerToast('success', `Successfully printed label for #${order.order_number}!`);
+      triggerToast('success', `Order #${order.order_number} packed successfully! Print dialog opened.`);
       
       // Archive/delete order locally since it has been fulfilled
       await deleteActiveOrder(order.order_id);
@@ -615,19 +466,15 @@ export default function PackTab() {
     } catch (err: any) {
       console.error('Print job failed:', err);
       setPrintError(`Print failed: ${err.message}`);
+      triggerToast('error', `Printing failed: ${err.message}`);
     } finally {
       setIsPrinting(false);
       setPrintStatus('');
     }
   };
 
-  // Print raw test page to selected printer
+  // Print raw test page via browser print dialog
   const handlePrintTestLabel = async () => {
-    if (!qzConnected || !selectedPrinter) {
-      triggerToast('error', 'Please connect QZ Tray and select a printer first.');
-      return;
-    }
-    
     setIsPrinting(true);
     setPrintError('');
     setPrintStatus('Printing test label...');
@@ -637,19 +484,12 @@ export default function PackTab() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      const config = qz.configs.create(selectedPrinter);
-      const printData = [{
-        type: 'pixel',
-        format: 'pdf',
-        flavor: 'base64',
-        data: data.pdf
-      }];
-
-      await qz.print(config, printData);
-      triggerToast('success', 'Test label printed successfully!');
+      await printPdfNative(data.pdf);
+      triggerToast('success', 'Test label print dialog opened!');
     } catch (err: any) {
       console.error(err);
       setPrintError(`Test print failed: ${err.message}`);
+      triggerToast('error', `Test print failed: ${err.message}`);
     } finally {
       setIsPrinting(false);
       setPrintStatus('');
@@ -723,51 +563,30 @@ export default function PackTab() {
             </div>
           )}
 
-          {/* QZ Tray Connection Config */}
+          {/* Browser Printing Status */}
           {!isMobile && (
             <div style={{ padding: '20px', borderBottom: '1px solid var(--line)', background: 'rgba(0,0,0,0.1)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--snow3)' }}>Printer Connection</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ 
                     width: '8px', height: '8px', borderRadius: '50%', 
-                    background: qzConnected ? 'var(--teal)' : 'var(--rose)',
-                    boxShadow: qzConnected ? '0 0 8px var(--teal)' : 'none'
+                    background: 'var(--teal)',
+                    boxShadow: '0 0 8px var(--teal)'
                   }}></span>
-                  <span style={{ fontSize: '11px', fontWeight: 500, color: qzConnected ? 'var(--teal)' : 'var(--rose)' }}>{qzStatus}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--teal)' }}>Browser Print (Active)</span>
                 </div>
               </div>
-
-              {!qzConnected ? (
-                <button className="btn" onClick={initQzConnection} style={{ width: '100%', fontSize: '12px', padding: '6px 12px', background: 'var(--ink3)', border: '1px solid var(--line)', color: 'var(--snow)' }}>
-                  🔄 Reconnect QZ Tray
+              <div style={{ marginTop: '10px' }}>
+                <button 
+                  className="btn" 
+                  onClick={handlePrintTestLabel} 
+                  disabled={isPrinting}
+                  style={{ width: '100%', fontSize: '11px', padding: '5px', background: 'transparent', border: '1px dashed var(--line2)', color: 'var(--snow3)' }}
+                >
+                  {isPrinting ? 'Generating...' : '🖨️ Print Test Label'}
                 </button>
-              ) : (
-                <div>
-                  <label style={{ fontSize: '11px', color: 'var(--snow3)', display: 'block', marginBottom: '4px' }}>Target Label Printer</label>
-                  <select 
-                    value={selectedPrinter} 
-                    onChange={handlePrinterChange}
-                    style={{ 
-                      width: '100%', padding: '7px', background: 'var(--ink3)', border: '1px solid var(--line)', 
-                      borderRadius: '6px', color: 'var(--snow2)', fontSize: '12px', marginBottom: '10px',
-                      fontFamily: 'DM Sans, sans-serif'
-                    }}
-                  >
-                    {printers.map((p, idx) => (
-                      <option key={idx} value={p}>{p}</option>
-                    ))}
-                  </select>
-                  <button 
-                    className="btn" 
-                    onClick={handlePrintTestLabel} 
-                    disabled={isPrinting}
-                    style={{ width: '100%', fontSize: '11px', padding: '5px', background: 'transparent', border: '1px dashed var(--line2)', color: 'var(--snow3)' }}
-                  >
-                    🖨️ Print Test 4x6 Page
-                  </button>
-                </div>
-              )}
+              </div>
             </div>
           )}
 
