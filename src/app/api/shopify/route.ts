@@ -333,6 +333,7 @@ export async function GET(req: Request) {
                   id
                   title
                   vendor
+                  status
                   featuredImage {
                     url
                   }
@@ -399,6 +400,7 @@ export async function GET(req: Request) {
           const pLoc = pLocMeta?.value || '';
           const vendor = product.vendor || '';
           const featuredImg = product.featuredImage?.url || '';
+          const status = product.status ? product.status.toLowerCase() : 'active';
 
           const variants = product.variants?.edges || [];
           for (const vEdge of variants) {
@@ -424,6 +426,7 @@ export async function GET(req: Request) {
               vendor,
               inventory_quantity: variant.inventoryQuantity || 0,
               image_url: imageUrl,
+              status,
               last_synced: Date.now()
             };
           }

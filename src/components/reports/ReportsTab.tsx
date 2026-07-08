@@ -7,6 +7,7 @@ export default function ReportsTab() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'instock' | 'low' | 'out'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft' | 'archived'>('all');
   const [reportType, setReportType] = useState<'cubicles' | 'low_stock' | 'master'>('cubicles');
   const [syncStatus, setSyncStatus] = useState('');
 
@@ -68,7 +69,7 @@ export default function ReportsTab() {
       }, {} as Record<string, CatalogItem[]>);
   };
 
-  // Filter logic based on search query and stock levels
+  // Filter logic based on search query, stock levels, and product statuses
   const filteredCatalog = catalog.filter((item) => {
     const q = searchTerm.toLowerCase();
     const matchesSearch = (
@@ -80,10 +81,20 @@ export default function ReportsTab() {
     if (!matchesSearch) return false;
 
     const qty = item.inventory_quantity ?? 0;
-    if (stockFilter === 'instock') return qty > 0;
-    if (stockFilter === 'low') return qty > 0 && qty <= 5;
-    if (stockFilter === 'out') return qty === 0;
-    return true; // 'all'
+    if (stockFilter === 'instock') {
+      if (qty <= 0) return false;
+    } else if (stockFilter === 'low') {
+      if (qty <= 0 || qty > 5) return false;
+    } else if (stockFilter === 'out') {
+      if (qty !== 0) return false;
+    }
+
+    const status = (item.status || 'active').toLowerCase();
+    if (statusFilter !== 'all' && status !== statusFilter) {
+      return false;
+    }
+
+    return true;
   });
 
   const cubicleData = getCubicleMap();
@@ -95,28 +106,28 @@ export default function ReportsTab() {
 
     if (reportType === 'cubicles') {
       filename = 'cubicle_inventory_report.csv';
-      csvContent = 'Location,Product Title,SKU,Barcode,Stock Quantity\n';
+      csvContent = 'Location,Product Title,SKU,Barcode,Stock Quantity,Status\n';
       Object.entries(cubicleData).forEach(([location, items]) => {
         items.forEach((item) => {
           const safeTitle = `"${(item.title || '').replace(/"/g, '""')}"`;
-          csvContent += `"${location}",${safeTitle},"${item.sku || ''}","${item.barcode || ''}",${item.inventory_quantity ?? 0}\n`;
+          csvContent += `"${location}",${safeTitle},"${item.sku || ''}","${item.barcode || ''}",${item.inventory_quantity ?? 0},"${item.status || 'active'}"\n`;
         });
       });
     } else if (reportType === 'low_stock') {
       filename = 'low_stock_report.csv';
-      csvContent = 'Product Title,SKU,Barcode,Location,Stock Quantity\n';
+      csvContent = 'Product Title,SKU,Barcode,Location,Stock Quantity,Status\n';
       filteredCatalog
         .filter((item) => (item.inventory_quantity ?? 0) <= 5)
         .forEach((item) => {
           const safeTitle = `"${(item.title || '').replace(/"/g, '""')}"`;
-          csvContent += `${safeTitle},"${item.sku || ''}","${item.barcode || ''}","${item.cubicle || 'None'}",${item.inventory_quantity ?? 0}\n`;
+          csvContent += `${safeTitle},"${item.sku || ''}","${item.barcode || ''}","${item.cubicle || 'None'}",${item.inventory_quantity ?? 0},"${item.status || 'active'}"\n`;
         });
     } else {
       filename = 'master_catalog_report.csv';
-      csvContent = 'Product Title,SKU,Barcode,Location,Stock Quantity,Brand\n';
+      csvContent = 'Product Title,SKU,Barcode,Location,Stock Quantity,Brand,Status\n';
       filteredCatalog.forEach((item) => {
         const safeTitle = `"${(item.title || '').replace(/"/g, '""')}"`;
-        csvContent += `${safeTitle},"${item.sku || ''}","${item.barcode || ''}","${item.cubicle || 'None'}",${item.inventory_quantity ?? 0},"${item.vendor || ''}"\n`;
+        csvContent += `${safeTitle},"${item.sku || ''}","${item.barcode || ''}","${item.cubicle || 'None'}",${item.inventory_quantity ?? 0},"${item.vendor || ''}","${item.status || 'active'}"\n`;
       });
     }
 
@@ -240,7 +251,7 @@ export default function ReportsTab() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '560px', flexWrap: 'nowrap' }}>
+        <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '640px', flexWrap: 'wrap' }}>
           <select
             value={stockFilter}
             onChange={(e) => setStockFilter(e.target.value as any)}
@@ -261,6 +272,26 @@ export default function ReportsTab() {
             <option value="out">🔴 Out of Stock Only (0)</option>
           </select>
 
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            style={{
+              padding: '8px 12px',
+              background: 'var(--ink2)',
+              border: '1px solid var(--line)',
+              borderRadius: '6px',
+              color: 'var(--snow2)',
+              fontSize: '12px',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="all">👁️ All Product Statuses</option>
+            <option value="active">🟢 Active Only</option>
+            <option value="draft">🟡 Draft Only</option>
+            <option value="archived">🔴 Archived Only</option>
+          </select>
+
           <input 
             type="text"
             placeholder="Filter report by Title, SKU, Barcode, or Location..."
@@ -268,6 +299,7 @@ export default function ReportsTab() {
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{
               flex: 1,
+              minWidth: '200px',
               padding: '8px 14px',
               background: 'var(--ink2)',
               border: '1px solid var(--line)',
@@ -348,7 +380,25 @@ export default function ReportsTab() {
                                     <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>📦</div>
                                   )}
                                 </td>
-                                <td style={{ padding: '8px 0', paddingRight: '12px', fontWeight: 500, color: 'var(--snow)' }}>{item.title}</td>
+                                <td style={{ padding: '8px 0', paddingRight: '12px', fontWeight: 500, color: 'var(--snow)' }}>
+                                  {item.title}
+                                  {item.status && item.status !== 'active' && (
+                                    <span style={{ 
+                                      marginLeft: '8px', 
+                                      fontSize: '9px', 
+                                      fontWeight: 600,
+                                      padding: '2px 6px', 
+                                      borderRadius: '4px',
+                                      background: item.status === 'draft' ? 'rgba(240,163,72,0.15)' : 'rgba(244,63,94,0.15)',
+                                      color: item.status === 'draft' ? 'var(--amber)' : 'var(--rose)',
+                                      border: item.status === 'draft' ? '1px solid rgba(240,163,72,0.2)' : '1px solid rgba(244,63,94,0.2)',
+                                      verticalAlign: 'middle',
+                                      display: 'inline-block'
+                                    }}>
+                                      {item.status.toUpperCase()}
+                                    </span>
+                                  )}
+                                </td>
                                 <td style={{ padding: '8px 0', fontFamily: 'DM Mono, monospace', fontSize: '12px' }}>{item.sku}</td>
                                 <td style={{ padding: '8px 0', color: 'var(--snow3)' }}>{item.barcode || '—'}</td>
                                 <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold', color: (item.inventory_quantity ?? 0) === 0 ? 'var(--rose)' : (item.inventory_quantity ?? 0) < 5 ? 'var(--amber)' : 'var(--teal)' }}>
@@ -391,7 +441,25 @@ export default function ReportsTab() {
                               <div style={{ width: '32px', height: '32px', borderRadius: '4px', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>📦</div>
                             )}
                           </td>
-                          <td style={{ padding: '10px 0', fontWeight: 500, color: 'var(--snow)' }}>{item.title}</td>
+                          <td style={{ padding: '10px 0', fontWeight: 500, color: 'var(--snow)' }}>
+                            {item.title}
+                            {item.status && item.status !== 'active' && (
+                              <span style={{ 
+                                marginLeft: '8px', 
+                                fontSize: '9px', 
+                                fontWeight: 600,
+                                padding: '2px 6px', 
+                                borderRadius: '4px',
+                                background: item.status === 'draft' ? 'rgba(240,163,72,0.15)' : 'rgba(244,63,94,0.15)',
+                                color: item.status === 'draft' ? 'var(--amber)' : 'var(--rose)',
+                                border: item.status === 'draft' ? '1px solid rgba(240,163,72,0.2)' : '1px solid rgba(244,63,94,0.2)',
+                                verticalAlign: 'middle',
+                                display: 'inline-block'
+                              }}>
+                                {item.status.toUpperCase()}
+                              </span>
+                            )}
+                          </td>
                           <td style={{ padding: '10px 0', fontFamily: 'DM Mono, monospace', fontSize: '12px' }}>{item.sku}</td>
                           <td style={{ padding: '10px 0' }}>
                             <span style={{ 
@@ -437,7 +505,25 @@ export default function ReportsTab() {
                             <div style={{ width: '32px', height: '32px', borderRadius: '4px', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>📦</div>
                           )}
                         </td>
-                        <td style={{ padding: '10px 0', fontWeight: 500, color: 'var(--snow)' }}>{item.title}</td>
+                        <td style={{ padding: '10px 0', fontWeight: 500, color: 'var(--snow)' }}>
+                          {item.title}
+                          {item.status && item.status !== 'active' && (
+                            <span style={{ 
+                              marginLeft: '8px', 
+                              fontSize: '9px', 
+                              fontWeight: 600,
+                              padding: '2px 6px', 
+                              borderRadius: '4px',
+                              background: item.status === 'draft' ? 'rgba(240,163,72,0.15)' : 'rgba(244,63,94,0.15)',
+                              color: item.status === 'draft' ? 'var(--amber)' : 'var(--rose)',
+                              border: item.status === 'draft' ? '1px solid rgba(240,163,72,0.2)' : '1px solid rgba(244,63,94,0.2)',
+                              verticalAlign: 'middle',
+                              display: 'inline-block'
+                            }}>
+                              {item.status.toUpperCase()}
+                            </span>
+                          )}
+                        </td>
                         <td style={{ padding: '10px 0', fontFamily: 'DM Mono, monospace', fontSize: '12px' }}>{item.sku}</td>
                         <td style={{ padding: '10px 0', color: 'var(--snow3)' }}>{item.barcode || '—'}</td>
                         <td style={{ padding: '10px 0' }}>

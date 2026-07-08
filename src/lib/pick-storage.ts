@@ -12,6 +12,7 @@ export interface CatalogItem {
   vendor: string;
   inventory_quantity?: number;
   image_url?: string;
+  status?: string;
   last_synced: number;
 }
 
