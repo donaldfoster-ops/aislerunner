@@ -75,7 +75,7 @@ export default function Home() {
     <>
       <header className="header">
         <div className="logo">
-          <div className="logo-mark" style={{ background: 'var(--gold)', color: 'var(--ink)' }}>AR</div>
+          <img src="/logo.png" alt="AisleRunner Logo" className="logo-mark" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover' }} />
           <div>
             <div className="logo-text">Aisle Runner</div>
             <div className="logo-sub">wms microfulfillment</div>
