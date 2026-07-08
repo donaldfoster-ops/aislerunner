@@ -127,18 +127,23 @@ export default function PackTab() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const handlePopState = (event: PopStateEvent) => {
-      setSelectedOrder(null);
-      setMobileView('list');
+    const handleHashChange = () => {
+      if (window.location.hash !== '#workspace') {
+        setSelectedOrder(null);
+        setMobileView('list');
+      }
     };
 
     if (mobileView === 'workspace') {
-      window.history.pushState({ view: 'workspace' }, '');
-      window.addEventListener('popstate', handlePopState);
+      window.location.hash = 'workspace';
+      window.addEventListener('hashchange', handleHashChange);
     }
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
+      if (window.location.hash === '#workspace') {
+        window.location.hash = '';
+      }
     };
   }, [mobileView]);
 
