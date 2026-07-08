@@ -80,7 +80,8 @@ if (typeof window !== 'undefined') {
   qz.security.setSignatureAlgorithm("SHA512");
   qz.security.setSignaturePromise((toSign: string) => {
     return new Promise((resolve, reject) => {
-      fetch('/api/qz-sign', {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      fetch(`${origin}/api/qz-sign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ request: toSign })
@@ -89,13 +90,20 @@ if (typeof window !== 'undefined') {
         if (res.ok) {
           resolve(await res.text());
         } else {
-          reject(await res.text());
+          const txt = await res.text();
+          lastSignatureError = `HTTP ${res.status}: ${txt}`;
+          reject(txt);
         }
       })
-      .catch(err => reject(err));
+      .catch(err => {
+        lastSignatureError = err.message || err.toString();
+        reject(err);
+      });
     });
   });
 }
+
+let lastSignatureError = '';
 
 export default function PackTab() {
   // QZ Connection state
@@ -253,7 +261,10 @@ export default function PackTab() {
     } catch (err: any) {
       console.error('QZ connection failed:', err);
       setQzConnected(false);
-      const errMsg = err.message || (typeof err === 'string' ? err : 'Check QZ Tray');
+      let errMsg = err.message || (typeof err === 'string' ? err : 'Check QZ Tray');
+      if (errMsg.includes('sign request') && lastSignatureError) {
+        errMsg = `${errMsg} (${lastSignatureError})`;
+      }
       setQzStatus(`Connection Failed: ${errMsg}`);
     }
   };
