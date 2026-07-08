@@ -38,7 +38,7 @@ if (typeof window !== 'undefined') {
 
   qz.security.setSignatureAlgorithm("SHA512");
   qz.security.setSignaturePromise((toSign: string) => {
-    return new Promise((resolve, reject) => {
+    return (resolve: any, reject: any) => {
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       fetch(`${origin}/api/qz-sign`, {
         method: 'POST',
@@ -58,7 +58,7 @@ if (typeof window !== 'undefined') {
         lastSignatureError = err.message || err.toString();
         reject(err);
       });
-    });
+    };
   });
 }
 
