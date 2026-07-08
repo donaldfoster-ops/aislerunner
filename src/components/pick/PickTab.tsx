@@ -159,6 +159,37 @@ export default function PickTab() {
     }
   }, [activeSession]);
 
+  // Synchronize mobileActiveView, activeSession, and selectedOrder with browser history to handle system back button
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (event: PopStateEvent) => {
+      setSelectedOrder(null);
+      setActiveSession(null);
+      setMobileActiveView('list');
+    };
+
+    if (mobileActiveView === 'workspace') {
+      window.history.pushState({ view: 'workspace' }, '');
+      window.addEventListener('popstate', handlePopState);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [mobileActiveView]);
+
+  const goBackToList = () => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    if (isMobile && mobileActiveView === 'workspace') {
+      window.history.back();
+    } else {
+      setSelectedOrder(null);
+      setActiveSession(null);
+      setMobileActiveView('list');
+    }
+  };
+
   const playSound = (type: 'success' | 'error') => {
     if (typeof window === 'undefined') return;
     
@@ -2320,7 +2351,7 @@ export default function PickTab() {
                 {/* Mobile Back Button */}
                 <button 
                   className="btn pick-mobile-back"
-                  onClick={() => { setActiveSession(null); setSelectedOrder(null); setMobileActiveView('list'); }}
+                  onClick={goBackToList}
                   style={{
                     marginBottom: '12px',
                     background: 'var(--ink3)',

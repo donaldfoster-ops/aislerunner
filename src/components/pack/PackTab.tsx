@@ -123,6 +123,34 @@ export default function PackTab() {
     setToast({ type, message });
   };
 
+  // Synchronize mobileView and selectedOrder with browser history to handle system back button
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (event: PopStateEvent) => {
+      setSelectedOrder(null);
+      setMobileView('list');
+    };
+
+    if (mobileView === 'workspace') {
+      window.history.pushState({ view: 'workspace' }, '');
+      window.addEventListener('popstate', handlePopState);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [mobileView]);
+
+  const goBackToList = () => {
+    if (isMobile && mobileView === 'workspace') {
+      window.history.back();
+    } else {
+      setSelectedOrder(null);
+      setMobileView('list');
+    }
+  };
+
   // Load orders from local IndexedDB (only fully picked ones)
   const loadLocalOrders = async () => {
     try {
@@ -461,8 +489,8 @@ export default function PackTab() {
       // Archive/delete order locally since it has been fulfilled
       await deleteActiveOrder(order.order_id);
       await loadLocalOrders();
-      setSelectedOrder(null);
       setIsOrderComplete(false);
+      goBackToList();
     } catch (err: any) {
       console.error('Print job failed:', err);
       setPrintError(`Print failed: ${err.message}`);
@@ -714,7 +742,7 @@ export default function PackTab() {
 
                 {/* Reset/Cancel button */}
                 <button 
-                  onClick={() => { setSelectedOrder(null); setMobileView('list'); }} 
+                  onClick={goBackToList} 
                   style={{ background: 'var(--ink3)', border: '1px solid var(--line)', borderRadius: '6px', padding: '6px 12px', color: 'var(--snow3)', fontSize: '12px', cursor: 'pointer' }}
                 >
                   {isMobile ? '← Back' : 'Close Order'}
